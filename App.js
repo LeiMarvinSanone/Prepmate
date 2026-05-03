@@ -15,6 +15,7 @@ if (Platform.OS === 'web') {
 import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
+import HomeScreen from './screens/HomeScreen';
 
 // Still placeholders for now
 const placeholder = (name) => () => (
@@ -23,7 +24,6 @@ const placeholder = (name) => () => (
   </View>
 );
 
-const HomeScreen = placeholder('Home');
 const EventListScreen = placeholder('EventList');
 const ChecklistDetailScreen = placeholder('ChecklistDetail');
 const CreateEventScreen = placeholder('CreateEvent');
