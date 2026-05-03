@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { COLORS } from '../constants/colors';
+import { createUserDocument } from './services/userService';
 
 export default function SplashScreen({ navigation }) {
   useEffect(() => {
