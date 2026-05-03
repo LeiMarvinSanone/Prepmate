@@ -47,12 +47,15 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleCategoryPress = (category) => {
-    if (category.id === 'custom') {
-      navigation.navigate('CreateEvent');
-    } else {
-      navigation.navigate('MyEvents', { category });
-    }
-  };
+  if (category.id === 'custom') {
+    navigation.navigate('CreateEvent');
+  } else {
+    navigation.navigate('Main', {
+      screen: 'MyEvents',
+      params: { category: category },
+    });
+  }
+};
 
   return (
     <SafeAreaView style={styles.safeArea}>

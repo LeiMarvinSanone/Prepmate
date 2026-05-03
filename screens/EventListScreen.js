@@ -19,17 +19,18 @@ export default function EventListScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState({ visible: false, eventId: null });
 
-  const fetchEvents = async () => {
+  const fetchEvents = async (categoryFilter) => {
     setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
 
-      const currentCategory = route.params?.category || null;
       let fetchedEvents = await getUserEvents(user.uid);
 
-      if (currentCategory) {
-        fetchedEvents = fetchedEvents.filter(e => e.category === currentCategory.id);
+      if (categoryFilter && categoryFilter.id) {
+        fetchedEvents = fetchedEvents.filter(
+          e => e.category === categoryFilter.id
+        );
       }
 
       const eventsWithProgress = await Promise.all(
@@ -55,9 +56,10 @@ export default function EventListScreen({ navigation, route }) {
 
   useFocusEffect(
     useCallback(() => {
+      const currentCategory = route.params?.category ?? null;
       setSearch('');
-      fetchEvents();
-    }, [route.params])
+      fetchEvents(currentCategory);
+    }, [route.params?.category])
   );
 
   const handleSearch = (text) => {
@@ -78,7 +80,8 @@ export default function EventListScreen({ navigation, route }) {
       await deleteAllEventItems(deleteModal.eventId);
       await deleteEvent(deleteModal.eventId);
       setDeleteModal({ visible: false, eventId: null });
-      fetchEvents();
+      const currentCategory = route.params?.category ?? null;
+      fetchEvents(currentCategory);
     } catch (error) {
       setDeleteModal({ visible: false, eventId: null });
     }
@@ -91,6 +94,7 @@ export default function EventListScreen({ navigation, route }) {
       travel: '🧳',
       school: '🎒',
       indoor: '🛋️',
+      more: '🗂️',
       custom: '✨',
     };
     return emojis[categoryId] || '📋';
@@ -105,7 +109,7 @@ export default function EventListScreen({ navigation, route }) {
     });
   };
 
-  const currentCategory = route.params?.category || null;
+  const currentCategory = route.params?.category ?? null;
 
   const renderEvent = ({ item }) => (
     <TouchableOpacity

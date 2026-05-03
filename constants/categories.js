@@ -36,6 +36,13 @@ export const CATEGORIES = [
     color: '#F3E5F5' 
   },
   { 
+    id: 'more', 
+    label: 'More', 
+    subtitle: 'Sports, Health, Family...', 
+    icon: '🗂️', 
+    color: '#E0F7FA' 
+  },
+  { 
     id: 'custom', 
     label: 'Custom Event', 
     subtitle: 'Create your own event', 

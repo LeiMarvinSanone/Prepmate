@@ -72,6 +72,12 @@ function MainTabs() {
         name="MyEvents"
         component={EventListScreen}
         options={{ title: 'My Events' }}
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('MyEvents', { category: null });
+          },
+        })}
       />
       <Tab.Screen name="Reminders" component={RemindersScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />

@@ -18,14 +18,16 @@ export default function CreateEventScreen({ navigation, route }) {
 
   const [name, setName] = useState(existingEvent?.name || '');
   const [category, setCategory] = useState(existingEvent?.category || defaultCategory);
-  const [date, setDate] = useState(existingEvent?.date ? new Date(existingEvent.date) : new Date());
-  const [time, setTime] = useState(existingEvent?.time ? new Date(`1970-01-01T${existingEvent.time}`) : new Date());
+  const [date, setDate] = useState(
+    existingEvent?.date ? new Date(existingEvent.date) : new Date()
+  );
+  const [time, setTime] = useState(
+    existingEvent?.time ? new Date(`1970-01-01T${existingEvent.time}`) : new Date()
+  );
   const [notes, setNotes] = useState(existingEvent?.notes || '');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [modal, setModal] = useState({ visible: false, eventId: null });
-
-  // Date/Time picker states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -48,13 +50,8 @@ export default function CreateEventScreen({ navigation, route }) {
     });
   };
 
-  const formatSaveDate = (d) => {
-    return d.toISOString().split('T')[0]; // YYYY-MM-DD
-  };
-
-  const formatSaveTime = (t) => {
-    return t.toTimeString().slice(0, 5); // HH:MM
-  };
+  const formatSaveDate = (d) => d.toISOString().split('T')[0];
+  const formatSaveTime = (t) => t.toTimeString().slice(0, 5);
 
   const validate = () => {
     let valid = true;
@@ -80,7 +77,6 @@ export default function CreateEventScreen({ navigation, route }) {
         time: formatSaveTime(time),
         notes,
       };
-
       if (isEditing) {
         await updateEvent(existingEvent.id, eventData);
         setModal({ visible: true, eventId: existingEvent.id, isEditing: true });
@@ -95,57 +91,36 @@ export default function CreateEventScreen({ navigation, route }) {
     }
   };
 
-  // Web date/time picker fallback
-  const WebDatePicker = () => (
-    <Modal visible={showDatePicker} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalBox}>
-          <Text style={styles.modalTitle}>📅 Select Date</Text>
-          <DateTimePicker
-            value={date}
-            mode="date"
-            display="inline"
-            onChange={(event, selectedDate) => {
-              if (selectedDate) setDate(selectedDate);
-            }}
-            minimumDate={new Date()}
-            style={{ width: '100%' }}
-          />
-          <TouchableOpacity
-            style={styles.modalButton}
-            onPress={() => setShowDatePicker(false)}
-          >
-            <Text style={styles.modalButtonText}>Confirm</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
+  const selectableCategories = CATEGORIES.filter(c => c.id !== 'custom');
 
-  const WebTimePicker = () => (
-    <Modal visible={showTimePicker} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalBox}>
-          <Text style={styles.modalTitle}>🕐 Select Time</Text>
-          <DateTimePicker
-            value={time}
-            mode="time"
-            display="spinner"
-            onChange={(event, selectedTime) => {
-              if (selectedTime) setTime(selectedTime);
-            }}
-            style={{ width: '100%' }}
-          />
-          <TouchableOpacity
-            style={styles.modalButton}
-            onPress={() => setShowTimePicker(false)}
-          >
-            <Text style={styles.modalButtonText}>Confirm</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
+  const webInputStyle = {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    border: '1px solid #E0E0E0',
+    borderRadius: 12,
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#F9F9F9',
+    cursor: 'pointer',
+    width: '100%',
+    boxSizing: 'border-box',
+    marginBottom: 0,
+  };
+
+  const webNativeInputStyle = {
+    flex: 1,
+    border: 'none',
+    background: 'transparent',
+    fontSize: 15,
+    color: '#1A1A1A',
+    outline: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    width: '100%',
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -158,7 +133,9 @@ export default function CreateEventScreen({ navigation, route }) {
               <>
                 <Text style={styles.modalIcon}>❌</Text>
                 <Text style={styles.modalTitle}>Error</Text>
-                <Text style={styles.modalMessage}>Failed to save event. Please try again.</Text>
+                <Text style={styles.modalMessage}>
+                  Failed to save event. Please try again.
+                </Text>
                 <TouchableOpacity
                   style={styles.modalButton}
                   onPress={() => setModal({ visible: false })}
@@ -198,9 +175,7 @@ export default function CreateEventScreen({ navigation, route }) {
                   style={[styles.modalButton, styles.modalButtonOutline]}
                   onPress={() => {
                     setModal({ visible: false });
-                    setTimeout(() => {
-                      navigation.goBack();
-                    }, 100);
+                    setTimeout(() => navigation.goBack(), 100);
                   }}
                 >
                   <Text style={styles.modalButtonOutlineText}>
@@ -213,39 +188,40 @@ export default function CreateEventScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Date Picker */}
-      <WebDatePicker />
-
-      {/* Time Picker */}
-      <WebTimePicker />
-
-      {/* Native pickers for Android/iOS */}
+      {/* Native Date Picker (Android/iOS only) */}
       {showDatePicker && Platform.OS !== 'web' && (
         <DateTimePicker
           value={date}
           mode="date"
           display="default"
-          onChange={(event, selectedDate) => {
+          onChange={(e, selectedDate) => {
             setShowDatePicker(false);
             if (selectedDate) setDate(selectedDate);
           }}
           minimumDate={new Date()}
         />
       )}
+
+      {/* Native Time Picker (Android/iOS only) */}
       {showTimePicker && Platform.OS !== 'web' && (
         <DateTimePicker
           value={time}
           mode="time"
           display="default"
-          onChange={(event, selectedTime) => {
+          onChange={(e, selectedTime) => {
             setShowTimePicker(false);
             if (selectedTime) setTime(selectedTime);
           }}
         />
       )}
 
-      <ScrollView contentContainerStyle={styles.container}>
-
+      {/* Scrollable Form */}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        style={{ flex: 1 }}
+      >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -264,6 +240,9 @@ export default function CreateEventScreen({ navigation, route }) {
               {CATEGORIES.find(c => c.id === category)?.icon || '📋'}
             </Text>
           </View>
+          <Text style={styles.iconLabel}>
+            {CATEGORIES.find(c => c.id === category)?.label || 'Event'}
+          </Text>
         </View>
 
         {/* Form */}
@@ -272,12 +251,20 @@ export default function CreateEventScreen({ navigation, route }) {
           {/* Event Name */}
           <Text style={styles.label}>Event Name</Text>
           <View style={styles.inputWrapper}>
-            <MaterialIcons name="event" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <MaterialIcons
+              name="event"
+              size={20}
+              color={COLORS.textSecondary}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="e.g. Beach Trip"
               value={name}
-              onChangeText={(text) => { setName(text); setErrors({...errors, name: null}); }}
+              onChangeText={(text) => {
+                setName(text);
+                setErrors({ ...errors, name: null });
+              }}
               placeholderTextColor={COLORS.textSecondary}
             />
           </View>
@@ -291,47 +278,110 @@ export default function CreateEventScreen({ navigation, route }) {
           {/* Category */}
           <Text style={styles.label}>Category</Text>
           <View style={styles.categoryGrid}>
-            {CATEGORIES.filter(c => c.id !== 'custom').map((cat) => (
+            {selectableCategories.map((cat) => (
               <TouchableOpacity
                 key={cat.id}
                 style={[
                   styles.categoryChip,
-                  { backgroundColor: category === cat.id ? COLORS.primary : cat.color }
+                  {
+                    backgroundColor:
+                      category === cat.id ? COLORS.primary : cat.color,
+                  },
                 ]}
                 onPress={() => setCategory(cat.id)}
               >
                 <Text style={styles.categoryChipIcon}>{cat.icon}</Text>
-                <Text style={[
-                  styles.categoryChipLabel,
-                  category === cat.id && styles.categoryChipLabelSelected
-                ]}>
+                <Text
+                  style={[
+                    styles.categoryChipLabel,
+                    category === cat.id && styles.categoryChipLabelSelected,
+                  ]}
+                >
                   {cat.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Date Picker */}
+          {/* Date */}
           <Text style={styles.label}>Date</Text>
-          <TouchableOpacity
-            style={styles.inputWrapper}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Ionicons name="calendar" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
-            <Text style={styles.pickerText}>{formatDisplayDate(date)}</Text>
-            <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          {Platform.OS === 'web' ? (
+            <label style={webInputStyle}>
+              <Ionicons
+                name="calendar"
+                size={20}
+                color={COLORS.textSecondary}
+                style={{ marginRight: 10 }}
+              />
+              <input
+                type="date"
+                value={date.toISOString().split('T')[0]}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setDate(new Date(e.target.value + 'T00:00:00'));
+                  }
+                }}
+                style={webNativeInputStyle}
+              />
+            </label>
+          ) : (
+            <TouchableOpacity
+              style={styles.inputWrapper}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="calendar"
+                size={20}
+                color={COLORS.textSecondary}
+                style={styles.inputIcon}
+              />
+              <Text style={styles.pickerText}>{formatDisplayDate(date)}</Text>
+              <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
 
-          {/* Time Picker */}
+          {/* Time */}
           <Text style={styles.label}>Time</Text>
-          <TouchableOpacity
-            style={styles.inputWrapper}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <Ionicons name="time" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
-            <Text style={styles.pickerText}>{formatDisplayTime(time)}</Text>
-            <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          {Platform.OS === 'web' ? (
+            <label style={webInputStyle}>
+              <Ionicons
+                name="time"
+                size={20}
+                color={COLORS.textSecondary}
+                style={{ marginRight: 10 }}
+              />
+              <input
+                type="time"
+                value={`${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const [hours, minutes] = e.target.value.split(':');
+                    const newTime = new Date();
+                    newTime.setHours(parseInt(hours));
+                    newTime.setMinutes(parseInt(minutes));
+                    setTime(newTime);
+                  }
+                }}
+                style={webNativeInputStyle}
+              />
+            </label>
+          ) : (
+            <TouchableOpacity
+              style={styles.inputWrapper}
+              onPress={() => setShowTimePicker(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="time"
+                size={20}
+                color={COLORS.textSecondary}
+                style={styles.inputIcon}
+              />
+              <Text style={styles.pickerText}>{formatDisplayTime(time)}</Text>
+              <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
 
           {/* Notes */}
           <Text style={styles.label}>Notes (optional)</Text>
@@ -375,7 +425,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flexGrow: 1,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
   header: {
     flexDirection: 'row',
@@ -401,9 +451,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 8,
   },
   iconEmoji: {
     fontSize: 36,
+  },
+  iconLabel: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
   form: {
     paddingHorizontal: 20,
@@ -481,6 +537,7 @@ const styles = StyleSheet.create({
   notesInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+    width: '100%',
   },
   saveButton: {
     backgroundColor: COLORS.primary,
