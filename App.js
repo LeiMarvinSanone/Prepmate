@@ -3,6 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from './constants/colors';
 
 // Fix browser input outline on web
 if (Platform.OS === 'web') {
@@ -16,6 +18,9 @@ import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HomeScreen from './screens/HomeScreen';
+import EventListScreen from './screens/EventListScreen';
+import CreateEventScreen from './screens/CreateEventScreen';
+import AddItemsScreen from './screens/AddItemsScreen';
 
 // Still placeholders for now
 const placeholder = (name) => () => (
@@ -24,10 +29,7 @@ const placeholder = (name) => () => (
   </View>
 );
 
-const EventListScreen = placeholder('EventList');
 const ChecklistDetailScreen = placeholder('ChecklistDetail');
-const CreateEventScreen = placeholder('CreateEvent');
-const AddItemsScreen = placeholder('AddItems');
 const ManageEventsScreen = placeholder('ManageEvents');
 const RemindersScreen = placeholder('Reminders');
 const SmartSuggestionsScreen = placeholder('SmartSuggestions');
@@ -38,9 +40,39 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   return (
-    <Tab.Navigator>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarStyle: {
+          borderTopWidth: 1,
+          borderTopColor: COLORS.border,
+          paddingBottom: 5,
+          paddingTop: 5,
+          height: 60,
+        },
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'MyEvents') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'Reminders') {
+            iconName = focused ? 'notifications' : 'notifications-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="MyEvents" component={EventListScreen} />
+      <Tab.Screen
+        name="MyEvents"
+        component={EventListScreen}
+        options={{ title: 'My Events' }}
+      />
       <Tab.Screen name="Reminders" component={RemindersScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
