@@ -50,7 +50,12 @@ export default function CreateEventScreen({ navigation, route }) {
     });
   };
 
-  const formatSaveDate = (d) => d.toISOString().split('T')[0];
+  const formatSaveDate = (d) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
   const formatSaveTime = (t) => t.toTimeString().slice(0, 5);
 
   const validate = () => {
@@ -315,10 +320,16 @@ export default function CreateEventScreen({ navigation, route }) {
               />
               <input
                 type="date"
-                value={date.toISOString().split('T')[0]}
+                value={`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}
                 onChange={(e) => {
                   if (e.target.value) {
-                    setDate(new Date(e.target.value + 'T00:00:00'));
+                    const [year, month, day] = e.target.value.split('-');
+                    const localDate = new Date(
+                      parseInt(year),
+                      parseInt(month) - 1,
+                      parseInt(day)
+                    );
+                    setDate(localDate);
                   }
                 }}
                 style={webNativeInputStyle}
@@ -422,6 +433,8 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
+    display: 'flex',
+    flexDirection: 'column',
   },
   container: {
     flexGrow: 1,
