@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, ScrollView, Alert, Image
+  Platform, ScrollView, Image, Modal
 } from 'react-native';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth, GOOGLE_WEB_CLIENT_ID } from '../firebase';
@@ -24,6 +24,7 @@ export default function SignUpScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [modal, setModal] = useState({ visible: false, title: '', message: '', icon: '' });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
@@ -36,7 +37,12 @@ export default function SignUpScreen({ navigation }) {
       setGoogleLoading(true);
       signInWithCredential(auth, credential)
         .then(() => navigation.replace('Main'))
-        .catch(() => Alert.alert('Error', 'Google Sign-In failed. Try again.'))
+        .catch(() => setModal({
+          visible: true,
+          icon: '❌',
+          title: 'Google Sign-In Failed',
+          message: 'Something went wrong. Please try again.',
+        }))
         .finally(() => setGoogleLoading(false));
     }
   }, [response]);
@@ -44,7 +50,6 @@ export default function SignUpScreen({ navigation }) {
   const validate = () => {
     let valid = true;
     let newErrors = {};
-
     if (!fullName.trim()) {
       newErrors.fullName = 'Full name is required';
       valid = false;
@@ -70,7 +75,6 @@ export default function SignUpScreen({ navigation }) {
       newErrors.confirmPassword = 'Passwords do not match';
       valid = false;
     }
-
     setErrors(newErrors);
     return valid;
   };
@@ -84,9 +88,26 @@ export default function SignUpScreen({ navigation }) {
       navigation.replace('Main');
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
-        Alert.alert('Sign Up Failed', 'This email is already registered.');
+        setModal({
+          visible: true,
+          icon: '📧',
+          title: 'Account Already Exists',
+          message: 'An account with this email already exists. Please log in instead.',
+        });
+      } else if (error.code === 'auth/weak-password') {
+        setModal({
+          visible: true,
+          icon: '⚠️',
+          title: 'Weak Password',
+          message: 'Your password is too weak. Please use at least 6 characters.',
+        });
       } else {
-        Alert.alert('Sign Up Failed', 'Something went wrong. Please try again.');
+        setModal({
+          visible: true,
+          icon: '❌',
+          title: 'Sign Up Failed',
+          message: 'Something went wrong. Please try again.',
+        });
       }
     } finally {
       setLoading(false);
@@ -98,7 +119,38 @@ export default function SignUpScreen({ navigation }) {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      {/* Error Modal */}
+      <Modal visible={modal.visible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalIcon}>{modal.icon}</Text>
+            <Text style={styles.modalTitle}>{modal.title}</Text>
+            <Text style={styles.modalMessage}>{modal.message}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setModal({ ...modal, visible: false })}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+            {modal.title === 'Account Already Exists' && (
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonOutline]}
+                onPress={() => {
+                  setModal({ ...modal, visible: false });
+                  navigation.navigate('Login');
+                }}
+              >
+                <Text style={styles.modalButtonOutlineText}>Go to Login</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -115,13 +167,13 @@ export default function SignUpScreen({ navigation }) {
         <View style={styles.form}>
 
           {/* Full Name */}
-          <View style={[styles.inputWrapper, errors.fullName && styles.inputError]}>
+          <View style={styles.inputWrapper}>
             <Ionicons name="person-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Full Name"
               value={fullName}
-              onChangeText={(text) => { setFullName(text); setErrors({...errors, fullName: null}); }}
+              onChangeText={(text) => { setFullName(text); setErrors({ ...errors, fullName: null }); }}
               placeholderTextColor={COLORS.textSecondary}
             />
           </View>
@@ -133,13 +185,13 @@ export default function SignUpScreen({ navigation }) {
           )}
 
           {/* Email */}
-          <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
+          <View style={styles.inputWrapper}>
             <MaterialIcons name="email" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Email"
               value={email}
-              onChangeText={(text) => { setEmail(text); setErrors({...errors, email: null}); }}
+              onChangeText={(text) => { setEmail(text); setErrors({ ...errors, email: null }); }}
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor={COLORS.textSecondary}
@@ -153,13 +205,13 @@ export default function SignUpScreen({ navigation }) {
           )}
 
           {/* Password */}
-          <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
+          <View style={styles.inputWrapper}>
             <MaterialIcons name="lock" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Password"
               value={password}
-              onChangeText={(text) => { setPassword(text); setErrors({...errors, password: null}); }}
+              onChangeText={(text) => { setPassword(text); setErrors({ ...errors, password: null }); }}
               secureTextEntry={!showPassword}
               placeholderTextColor={COLORS.textSecondary}
             />
@@ -179,13 +231,13 @@ export default function SignUpScreen({ navigation }) {
           )}
 
           {/* Confirm Password */}
-          <View style={[styles.inputWrapper, errors.confirmPassword && styles.inputError]}>
+          <View style={styles.inputWrapper}>
             <MaterialIcons name="lock" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Confirm Password"
               value={confirmPassword}
-              onChangeText={(text) => { setConfirmPassword(text); setErrors({...errors, confirmPassword: null}); }}
+              onChangeText={(text) => { setConfirmPassword(text); setErrors({ ...errors, confirmPassword: null }); }}
               secureTextEntry={!showConfirmPassword}
               placeholderTextColor={COLORS.textSecondary}
             />
@@ -235,7 +287,7 @@ export default function SignUpScreen({ navigation }) {
             ) : (
               <>
                 <Image
-                  source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png' }}
+                  source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
                   style={styles.googleIcon}
                 />
                 <Text style={styles.googleButtonText}>Continue with Google</Text>
@@ -294,10 +346,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: COLORS.background,
-    overflow: 'hidden',
-  },
-  inputError: {
-    borderColor: COLORS.error,
   },
   inputIcon: {
     marginRight: 10,
@@ -306,6 +354,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
+    outlineWidth: 0,
     outline: 'none',
     borderWidth: 0,
   },
@@ -359,8 +408,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   googleIcon: {
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
   },
   googleButtonText: {
     color: COLORS.text,
@@ -380,5 +430,59 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    gap: 12,
+  },
+  modalIcon: {
+    fontSize: 48,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  modalButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  modalButtonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  modalButtonOutlineText: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

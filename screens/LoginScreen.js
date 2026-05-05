@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, ScrollView, Alert, Image
+  Platform, ScrollView, Image, Modal
 } from 'react-native';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth, GOOGLE_WEB_CLIENT_ID } from '../firebase';
@@ -21,6 +21,7 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [modal, setModal] = useState({ visible: false, title: '', message: '', icon: '' });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
@@ -33,7 +34,12 @@ export default function LoginScreen({ navigation }) {
       setGoogleLoading(true);
       signInWithCredential(auth, credential)
         .then(() => navigation.replace('Main'))
-        .catch(() => Alert.alert('Error', 'Google Sign-In failed. Try again.'))
+        .catch(() => setModal({
+          visible: true,
+          icon: '❌',
+          title: 'Google Sign-In Failed',
+          message: 'Something went wrong. Please try again.',
+        }))
         .finally(() => setGoogleLoading(false));
     }
   }, [response]);
@@ -41,7 +47,6 @@ export default function LoginScreen({ navigation }) {
   const validate = () => {
     let valid = true;
     let newErrors = {};
-
     if (!email) {
       newErrors.email = 'Email is required';
       valid = false;
@@ -49,7 +54,6 @@ export default function LoginScreen({ navigation }) {
       newErrors.email = 'Enter a valid email';
       valid = false;
     }
-
     if (!password) {
       newErrors.password = 'Password is required';
       valid = false;
@@ -57,7 +61,6 @@ export default function LoginScreen({ navigation }) {
       newErrors.password = 'Password must be at least 6 characters';
       valid = false;
     }
-
     setErrors(newErrors);
     return valid;
   };
@@ -69,7 +72,32 @@ export default function LoginScreen({ navigation }) {
       await signInWithEmailAndPassword(auth, email, password);
       navigation.replace('Main');
     } catch (error) {
-      Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
+      if (
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/wrong-password'
+      ) {
+        setModal({
+          visible: true,
+          icon: '🔍',
+          title: 'Account Not Found',
+          message: "We couldn't find an account with this email. Please sign up first or check your credentials.",
+        });
+      } else if (error.code === 'auth/too-many-requests') {
+        setModal({
+          visible: true,
+          icon: '⚠️',
+          title: 'Too Many Attempts',
+          message: 'Too many failed login attempts. Please try again later.',
+        });
+      } else {
+        setModal({
+          visible: true,
+          icon: '❌',
+          title: 'Login Failed',
+          message: 'Invalid email or password. Please try again.',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -80,7 +108,38 @@ export default function LoginScreen({ navigation }) {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      {/* Error Modal */}
+      <Modal visible={modal.visible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalIcon}>{modal.icon}</Text>
+            <Text style={styles.modalTitle}>{modal.title}</Text>
+            <Text style={styles.modalMessage}>{modal.message}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setModal({ ...modal, visible: false })}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+            {modal.title === 'Account Not Found' && (
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonOutline]}
+                onPress={() => {
+                  setModal({ ...modal, visible: false });
+                  navigation.navigate('SignUp');
+                }}
+              >
+                <Text style={styles.modalButtonOutlineText}>Create Account</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.logo}>🎒</Text>
@@ -92,13 +151,13 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.form}>
 
           {/* Email */}
-          <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
+          <View style={styles.inputWrapper}>
             <MaterialIcons name="email" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Email"
               value={email}
-              onChangeText={(text) => { setEmail(text); setErrors({...errors, email: null}); }}
+              onChangeText={(text) => { setEmail(text); setErrors({ ...errors, email: null }); }}
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor={COLORS.textSecondary}
@@ -112,13 +171,13 @@ export default function LoginScreen({ navigation }) {
           )}
 
           {/* Password */}
-          <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
+          <View style={styles.inputWrapper}>
             <MaterialIcons name="lock" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Password"
               value={password}
-              onChangeText={(text) => { setPassword(text); setErrors({...errors, password: null}); }}
+              onChangeText={(text) => { setPassword(text); setErrors({ ...errors, password: null }); }}
               secureTextEntry={!showPassword}
               placeholderTextColor={COLORS.textSecondary}
             />
@@ -168,7 +227,7 @@ export default function LoginScreen({ navigation }) {
             ) : (
               <>
                 <Image
-                  source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png' }}
+                  source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
                   style={styles.googleIcon}
                 />
                 <Text style={styles.googleButtonText}>Continue with Google</Text>
@@ -227,10 +286,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: COLORS.background,
-    overflow: 'hidden',
-  },
-  inputError: {
-    borderColor: COLORS.error,
   },
   inputIcon: {
     marginRight: 10,
@@ -239,6 +294,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
+    outlineWidth: 0,
     outline: 'none',
     borderWidth: 0,
   },
@@ -292,8 +348,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   googleIcon: {
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
   },
   googleButtonText: {
     color: COLORS.text,
@@ -313,5 +370,59 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    gap: 12,
+  },
+  modalIcon: {
+    fontSize: 48,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  modalButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  modalButtonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  modalButtonOutlineText: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

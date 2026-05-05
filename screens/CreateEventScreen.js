@@ -222,6 +222,7 @@ export default function CreateEventScreen({ navigation, route }) {
 
       {/* Scrollable Form */}
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -438,7 +439,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flexGrow: 1,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   header: {
     flexDirection: 'row',
@@ -616,4 +617,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
+  scrollView: {
+  flex: 1,
+  width: '100%',
+},
 });
