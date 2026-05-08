@@ -324,7 +324,7 @@ export default function ChecklistDetailScreen({ navigation, route }) {
       {event && categoryInfo && (
         <View style={[styles.eventCard, { backgroundColor: categoryInfo.color }]}>
           <View style={styles.eventCardLeft}>
-            <Text style={styles.eventCardIcon}>{categoryInfo.icon}</Text>
+            <Text style={styles.eventCardIcon}>{event.emoji || categoryInfo.icon}</Text>
             <View style={styles.eventCardInfo}>
               <Text style={styles.eventCardName} numberOfLines={1}>
                 {event.name}
