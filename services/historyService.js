@@ -2,31 +2,32 @@
 import {
   collection, addDoc, getDocs, doc,
   updateDoc, query, where, orderBy,
-  limit, serverTimestamp
+  limit, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const HISTORY_COLLECTION = 'itemHistory';
 
-// Track item usage (for smart suggestions)
+// ─── Track item usage (called every time a user adds an item) ─────────────────
+
 export const trackItemUsage = async (userId, itemName, category) => {
   const q = query(
     collection(db, HISTORY_COLLECTION),
-    where('userId', '==', userId),
+    where('userId',   '==', userId),
     where('itemName', '==', itemName),
     where('category', '==', category)
   );
   const snapshot = await getDocs(q);
 
   if (!snapshot.empty) {
-    // Item exists — increment usage count
+    // Already tracked — increment
     const docRef = doc(db, HISTORY_COLLECTION, snapshot.docs[0].id);
     await updateDoc(docRef, {
       usageCount: snapshot.docs[0].data().usageCount + 1,
       lastUsed: serverTimestamp(),
     });
   } else {
-    // New item — create history record
+    // First time — create record
     await addDoc(collection(db, HISTORY_COLLECTION), {
       userId,
       itemName,
@@ -37,20 +38,22 @@ export const trackItemUsage = async (userId, itemName, category) => {
   }
 };
 
-// Get frequently used items for a category (Smart Suggestions)
+// ─── Top items for a single category (AddItemsScreen suggestions) ─────────────
+
 export const getFrequentItems = async (userId, category, limitCount = 6) => {
   const q = query(
     collection(db, HISTORY_COLLECTION),
-    where('userId', '==', userId),
+    where('userId',   '==', userId),
     where('category', '==', category),
     orderBy('usageCount', 'desc'),
     limit(limitCount)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
-// Get all frequently used items (for Smart Suggestions screen)
+// ─── Top items across ALL categories (SmartSuggestions — frequently brought) ──
+
 export const getAllFrequentItems = async (userId, limitCount = 10) => {
   const q = query(
     collection(db, HISTORY_COLLECTION),
@@ -59,5 +62,34 @@ export const getAllFrequentItems = async (userId, limitCount = 10) => {
     limit(limitCount)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+};
+
+// ─── Full history — every item ever tracked, sorted by usage (no cap) ─────────
+// Used by SmartSuggestionsScreen "Full History" list.
+
+export const getAllItemHistory = async (userId) => {
+  const q = query(
+    collection(db, HISTORY_COLLECTION),
+    where('userId', '==', userId),
+    orderBy('usageCount', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+};
+
+// ─── Top items per category — for the "You might need for X" sections ─────────
+// Returns an object keyed by categoryId, each value an array of item names.
+
+export const getFrequentItemsByCategory = async (userId, categories, limitPerCat = 5) => {
+  const result = {};
+  await Promise.all(
+    categories.map(async (catId) => {
+      const items = await getFrequentItems(userId, catId, limitPerCat);
+      if (items.length > 0) {
+        result[catId] = items.map((i) => i.itemName);
+      }
+    })
+  );
+  return result;
 };

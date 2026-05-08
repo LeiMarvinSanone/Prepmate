@@ -13,57 +13,52 @@ if (Platform.OS === 'web') {
   document.head.appendChild(style);
 }
 
-// Screens
-import SplashScreen from './screens/SplashScreen';
-import LoginScreen from './screens/LoginScreen';
-import SignUpScreen from './screens/SignUpScreen';
-import HomeScreen from './screens/HomeScreen';
-import EventListScreen from './screens/EventListScreen';
-import CreateEventScreen from './screens/CreateEventScreen';
-import AddItemsScreen from './screens/AddItemsScreen';
-import ChecklistDetailScreen from './screens/ChecklistDetailScreen'; // ← NEW
+// ── Screens ──
+import SplashScreen           from './screens/SplashScreen';
+import LoginScreen            from './screens/LoginScreen';
+import SignUpScreen           from './screens/SignUpScreen';
+import HomeScreen             from './screens/HomeScreen';
+import EventListScreen        from './screens/EventListScreen';
+import CreateEventScreen      from './screens/CreateEventScreen';
+import AddItemsScreen         from './screens/AddItemsScreen';
+import ChecklistDetailScreen  from './screens/ChecklistDetailScreen';
+import SmartSuggestionsScreen from './screens/SmartSuggestionsScreen'; // ← NEW
 
-// Still placeholders
+// ── Still placeholders (Phase 3 remaining) ──
 const placeholder = (name) => () => (
   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
     <Text>{name} Screen</Text>
   </View>
 );
 
-const ManageEventsScreen = placeholder('ManageEvents');
 const RemindersScreen = placeholder('Reminders');
-const SmartSuggestionsScreen = placeholder('SmartSuggestions');
-const ProfileScreen = placeholder('Profile');
+const ProfileScreen   = placeholder('Profile');
 
 const Stack = createStackNavigator();
-const Tab = createBottomTabNavigator();
+const Tab   = createBottomTabNavigator();
 
 function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: COLORS.primary,
+        tabBarActiveTintColor:   COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarStyle: {
-          borderTopWidth: 1,
-          borderTopColor: COLORS.border,
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          borderTopWidth:  1,
+          borderTopColor:  COLORS.border,
+          paddingBottom:   5,
+          paddingTop:      5,
+          height:          60,
         },
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'MyEvents') {
-            iconName = focused ? 'calendar' : 'calendar-outline';
-          } else if (route.name === 'Reminders') {
-            iconName = focused ? 'notifications' : 'notifications-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
-          }
-          return <Ionicons name={iconName} size={size} color={color} />;
+          const icons = {
+            Home:      focused ? 'home'          : 'home-outline',
+            MyEvents:  focused ? 'calendar'      : 'calendar-outline',
+            Reminders: focused ? 'notifications' : 'notifications-outline',
+            Profile:   focused ? 'person'        : 'person-outline',
+          };
+          return <Ionicons name={icons[route.name]} size={size} color={color} />;
         },
       })}
     >
@@ -80,7 +75,7 @@ function MainTabs() {
         })}
       />
       <Tab.Screen name="Reminders" component={RemindersScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile"   component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
@@ -92,14 +87,13 @@ export default function App() {
         initialRouteName="Splash"
         screenOptions={{ headerShown: false }}
       >
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignUp" component={SignUpScreen} />
-        <Stack.Screen name="Main" component={MainTabs} />
-        <Stack.Screen name="ChecklistDetail" component={ChecklistDetailScreen} />
-        <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
-        <Stack.Screen name="AddItems" component={AddItemsScreen} />
-        <Stack.Screen name="ManageEvents" component={ManageEventsScreen} />
+        <Stack.Screen name="Splash"           component={SplashScreen} />
+        <Stack.Screen name="Login"            component={LoginScreen} />
+        <Stack.Screen name="SignUp"           component={SignUpScreen} />
+        <Stack.Screen name="Main"             component={MainTabs} />
+        <Stack.Screen name="ChecklistDetail"  component={ChecklistDetailScreen} />
+        <Stack.Screen name="CreateEvent"      component={CreateEventScreen} />
+        <Stack.Screen name="AddItems"         component={AddItemsScreen} />
         <Stack.Screen name="SmartSuggestions" component={SmartSuggestionsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
