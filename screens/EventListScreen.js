@@ -118,7 +118,7 @@ export default function EventListScreen({ navigation, route }) {
       activeOpacity={0.8}
     >
       <View style={styles.eventLeft}>
-        <Text style={styles.eventEmoji}>{getCategoryEmoji(item.category)}</Text>
+        <Text style={styles.eventEmoji}>{item.emoji || getCategoryEmoji(item.category)}</Text>
         <View style={styles.eventInfo}>
           <Text style={styles.eventName}>{item.name}</Text>
           <Text style={styles.eventDate}>{formatDate(item.date)}</Text>

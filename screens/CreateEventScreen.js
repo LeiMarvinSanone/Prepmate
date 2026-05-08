@@ -1,9 +1,9 @@
 // screens/CreateEventScreen.js
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, ScrollView, ActivityIndicator,
-  SafeAreaView, Modal, Platform
+  SafeAreaView, Modal, Platform, FlatList,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -12,180 +12,247 @@ import { COLORS } from '../constants/colors';
 import { CATEGORIES } from '../constants/categories';
 import { createEvent, updateEvent } from '../services/eventService';
 
+// ─── Emoji picker data ────────────────────────────────────────────────────────
+// Grouped so the picker sheet feels organised and scannable
+const EMOJI_GROUPS = [
+  {
+    label: 'Travel & Outdoor',
+    emojis: ['🏖️','🏕️','🏔️','🌊','🌴','🎿','🚵','🧗','🤿','🛶','🌄','🌅','🏞️','🗺️','🧭'],
+  },
+  {
+    label: 'Work & Formal',
+    emojis: ['💼','👔','🤝','📊','🖥️','📋','🗂️','📝','🏛️','🎓','👗','💍','🥂','🎤','📸'],
+  },
+  {
+    label: 'School & Study',
+    emojis: ['📚','✏️','📐','🔬','🧪','💻','🖊️','📓','🗒️','🎒','📌','📎','🏫','🧠','📏'],
+  },
+  {
+    label: 'Food & Celebration',
+    emojis: ['🎂','🎉','🎊','🥳','🍕','🍣','🍜','🥗','🍷','🥂','🎁','🎈','🪅','🎆','🎇'],
+  },
+  {
+    label: 'Sports & Fitness',
+    emojis: ['⚽','🏀','🎾','🏋️','🧘','🚴','🏊','🤸','🏃','🥊','⛳','🎯','🏆','🥇','🎽'],
+  },
+  {
+    label: 'Home & Lifestyle',
+    emojis: ['🏠','🛋️','🌿','🎮','🎬','🎵','🎨','📷','🧹','🍳','☕','🛁','🛒','🐾','💐'],
+  },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function CreateEventScreen({ navigation, route }) {
-  const existingEvent = route.params?.event || null;
+  const existingEvent   = route.params?.event          || null;
   const defaultCategory = route.params?.defaultCategory || 'outdoor';
 
-  const [name, setName] = useState(existingEvent?.name || '');
+  // Determine if opened from ChecklistDetail (edit) or fresh creation
+  const isEditing = !!existingEvent;
+
+  // ── Form state ──
+  const [name,     setName]     = useState(existingEvent?.name     || '');
   const [category, setCategory] = useState(existingEvent?.category || defaultCategory);
-  const [date, setDate] = useState(
-    existingEvent?.date ? new Date(existingEvent.date) : new Date()
+  const [notes,    setNotes]    = useState(existingEvent?.notes    || '');
+  const [emoji,    setEmoji]    = useState(
+    existingEvent?.emoji || CATEGORIES.find(c => c.id === (existingEvent?.category || defaultCategory))?.icon || '📋'
   );
+
+  // Date – parse stored "YYYY-MM-DD" safely to avoid timezone shifts
+  const parseSavedDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+  const [date, setDate] = useState(parseSavedDate(existingEvent?.date));
   const [time, setTime] = useState(
     existingEvent?.time ? new Date(`1970-01-01T${existingEvent.time}`) : new Date()
   );
-  const [notes, setNotes] = useState(existingEvent?.notes || '');
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [modal, setModal] = useState({ visible: false, eventId: null });
+
+  // ── UI state ──
+  const [loading,        setLoading]        = useState(false);
+  const [errors,         setErrors]         = useState({});
+  const [resultModal,    setResultModal]    = useState({ visible: false });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [emojiModal,     setEmojiModal]     = useState(false);
 
-  const isEditing = !!existingEvent;
+  const scrollRef  = useRef(null);
+  const isMounted  = useRef(true);
 
-  const formatDisplayDate = (d) => {
-    return d.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
+  // Mark unmounted so async callbacks never setState after navigation
+  React.useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  // ─── Formatters ───────────────────────────────────────────────────────────
+
+  const formatDisplayDate = (d) =>
+    d.toLocaleDateString('en-US', {
+      weekday: 'short', month: 'long', day: 'numeric', year: 'numeric',
     });
-  };
 
-  const formatDisplayTime = (t) => {
-    return t.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
+  const formatDisplayTime = (t) =>
+    t.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const formatSaveDate = (d) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-  const formatSaveTime = (t) => t.toTimeString().slice(0, 5);
-
-  const validate = () => {
-    let valid = true;
-    let newErrors = {};
-    if (!name.trim()) {
-      newErrors.name = 'Event name is required';
-      valid = false;
-    }
-    setErrors(newErrors);
-    return valid;
+    const y  = d.getFullYear();
+    const m  = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
   };
 
+  const formatSaveTime = (t) => t.toTimeString().slice(0, 5);
+
+  // ─── Validation ───────────────────────────────────────────────────────────
+
+  const validate = () => {
+    const newErrors = {};
+    if (!name.trim()) newErrors.name = 'Event name is required';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ─── Save handler ─────────────────────────────────────────────────────────
+
   const handleSave = async () => {
-    if (!validate()) return;
+    if (!validate()) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
     setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
+
       const eventData = {
-        name,
+        name:     name.trim(),
         category,
-        date: formatSaveDate(date),
-        time: formatSaveTime(time),
-        notes,
+        emoji,
+        date:     formatSaveDate(date),
+        time:     formatSaveTime(time),
+        notes:    notes.trim(),
       };
+
       if (isEditing) {
+        // 1. Save to Firestore
         await updateEvent(existingEvent.id, eventData);
-        setModal({ visible: true, eventId: existingEvent.id, isEditing: true });
+        // 2. Navigate directly — no modal for edits, avoids the
+        //    setState-after-navigate race that caused "something went wrong"
+        navigation.navigate('ChecklistDetail', {
+          eventId:   existingEvent.id,
+          eventName: name.trim(),
+        });
       } else {
-        const eventId = await createEvent(user.uid, eventData);
-        setModal({ visible: true, eventId, isEditing: false });
+        // Capture eventId before any state mutation to avoid stale closure
+        const newEventId = await createEvent(user.uid, eventData);
+        if (isMounted.current) {
+          setResultModal({
+            visible:   true,
+            success:   true,
+            isEditing: false,
+            eventId:   newEventId,
+          });
+        }
       }
-    } catch (error) {
-      setModal({ visible: true, isError: true });
+    } catch (err) {
+      console.error('Save event error:', err);
+      if (isMounted.current) {
+        setResultModal({ visible: true, success: false });
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
-  const selectableCategories = CATEGORIES.filter(c => c.id !== 'custom');
+  // ─── Post-save navigation ─────────────────────────────────────────────────
 
+  // Capture eventId from modal state BEFORE clearing it (avoids stale closure)
+  const handleGoAddItems = (savedEventId) => {
+    setResultModal({ visible: false });
+    setTimeout(() => {
+      navigation.replace('AddItems', {
+        eventId:   savedEventId,
+        eventName: name.trim(),
+        category,
+      });
+    }, 100);
+  };
+
+  const handleAfterSave = () => {
+    setResultModal({ visible: false });
+    setTimeout(() => navigation.goBack(), 100);
+  };
+
+  // ─── Category change syncs default emoji ─────────────────────────────────
+
+  const handleCategoryChange = (catId) => {
+    setCategory(catId);
+    // Only auto-update emoji if user hasn't manually picked one
+    // (i.e. current emoji still matches the old category's default)
+    const oldDefault = CATEGORIES.find(c => c.id === category)?.icon;
+    if (emoji === oldDefault) {
+      setEmoji(CATEGORIES.find(c => c.id === catId)?.icon || '📋');
+    }
+  };
+
+  // ─── Derived ──────────────────────────────────────────────────────────────
+
+  const selectableCategories = CATEGORIES.filter(c => c.id !== 'custom' && c.id !== 'more');
+  const selectedCategoryInfo  = CATEGORIES.find(c => c.id === category);
+
+  // ─── Web-only date/time input styles ─────────────────────────────────────
+
+  const webRowStyle = {
+    display: 'flex', flexDirection: 'row', alignItems: 'center',
+    border: `1px solid ${COLORS.border}`, borderRadius: 12,
+    paddingLeft: 12, paddingRight: 12, paddingTop: 12, paddingBottom: 12,
+    backgroundColor: COLORS.background, cursor: 'pointer',
+    width: '100%', boxSizing: 'border-box',
+  };
   const webInputStyle = {
-    display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'center',
-    border: '1px solid #E0E0E0',
-    borderRadius: 12,
-    paddingLeft: 12,
-    paddingRight: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-    backgroundColor: '#F9F9F9',
-    cursor: 'pointer',
-    width: '100%',
-    boxSizing: 'border-box',
-    marginBottom: 0,
+    flex: 1, border: 'none', background: 'transparent',
+    fontSize: 15, color: COLORS.text, outline: 'none',
+    cursor: 'pointer', fontFamily: 'inherit', width: '100%',
   };
 
-  const webNativeInputStyle = {
-    flex: 1,
-    border: 'none',
-    background: 'transparent',
-    fontSize: 15,
-    color: '#1A1A1A',
-    outline: 'none',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    width: '100%',
-  };
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* Success/Error Modal */}
-      <Modal visible={modal.visible} transparent animationType="fade">
+      {/* ── Result modal (success / error) ── */}
+      <Modal visible={resultModal.visible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            {modal.isError ? (
+            {!resultModal.success ? (
               <>
-                <Text style={styles.modalIcon}>❌</Text>
-                <Text style={styles.modalTitle}>Error</Text>
-                <Text style={styles.modalMessage}>
-                  Failed to save event. Please try again.
+                <Text style={styles.modalEmoji}>❌</Text>
+                <Text style={styles.modalTitle}>Something went wrong</Text>
+                <Text style={styles.modalMsg}>
+                  Could not save the event. Please try again.
                 </Text>
                 <TouchableOpacity
-                  style={styles.modalButton}
-                  onPress={() => setModal({ visible: false })}
+                  style={styles.modalBtn}
+                  onPress={() => setResultModal({ visible: false })}
                 >
-                  <Text style={styles.modalButtonText}>OK</Text>
+                  <Text style={styles.modalBtnText}>OK</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={styles.modalIcon}>🎉</Text>
-                <Text style={styles.modalTitle}>
-                  {modal.isEditing ? 'Event Updated!' : 'Event Created!'}
-                </Text>
-                <Text style={styles.modalMessage}>
-                  {modal.isEditing
-                    ? 'Your event has been updated successfully.'
-                    : 'What would you like to do next?'}
-                </Text>
-                {!modal.isEditing && (
-                  <TouchableOpacity
-                    style={styles.modalButton}
-                    onPress={() => {
-                      setModal({ visible: false });
-                      setTimeout(() => {
-                        navigation.replace('AddItems', {
-                          eventId: modal.eventId,
-                          eventName: name,
-                          category,
-                        });
-                      }, 100);
-                    }}
-                  >
-                    <Text style={styles.modalButtonText}>➕ Add Items</Text>
-                  </TouchableOpacity>
-                )}
+                <Text style={styles.modalEmoji}>🎉</Text>
+                <Text style={styles.modalTitle}>Event Created!</Text>
+                <Text style={styles.modalMsg}>What would you like to do next?</Text>
+                <TouchableOpacity style={styles.modalBtn} onPress={() => handleGoAddItems(resultModal.eventId)}>
+                  <Text style={styles.modalBtnText}>➕  Add Items Now</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonOutline]}
-                  onPress={() => {
-                    setModal({ visible: false });
-                    setTimeout(() => navigation.goBack(), 100);
-                  }}
+                  style={[styles.modalBtn, styles.modalBtnOutline]}
+                  onPress={handleAfterSave}
                 >
-                  <Text style={styles.modalButtonOutlineText}>
-                    {modal.isEditing ? 'Go Back' : 'Done'}
-                  </Text>
+                  <Text style={styles.modalBtnOutlineText}>Done for Now</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -193,86 +260,133 @@ export default function CreateEventScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Native Date Picker (Android/iOS only) */}
+      {/* ── Emoji picker modal ── */}
+      <Modal visible={emojiModal} transparent animationType="slide">
+        <View style={styles.emojiOverlay}>
+          <View style={styles.emojiSheet}>
+            {/* Sheet handle */}
+            <View style={styles.sheetHandle} />
+            <View style={styles.emojiSheetHeader}>
+              <Text style={styles.emojiSheetTitle}>Choose an icon</Text>
+              <TouchableOpacity onPress={() => setEmojiModal(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {EMOJI_GROUPS.map((group) => (
+                <View key={group.label} style={styles.emojiGroup}>
+                  <Text style={styles.emojiGroupLabel}>{group.label}</Text>
+                  <View style={styles.emojiGrid}>
+                    {group.emojis.map((e) => (
+                      <TouchableOpacity
+                        key={e}
+                        style={[
+                          styles.emojiCell,
+                          emoji === e && styles.emojiCellSelected,
+                        ]}
+                        onPress={() => {
+                          setEmoji(e);
+                          setEmojiModal(false);
+                        }}
+                      >
+                        <Text style={styles.emojiCellText}>{e}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+              <View style={{ height: 32 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Native date / time pickers ── */}
       {showDatePicker && Platform.OS !== 'web' && (
         <DateTimePicker
           value={date}
           mode="date"
           display="default"
-          onChange={(e, selectedDate) => {
+          onChange={(_, selected) => {
             setShowDatePicker(false);
-            if (selectedDate) setDate(selectedDate);
+            if (selected) setDate(selected);
           }}
-          minimumDate={new Date()}
         />
       )}
-
-      {/* Native Time Picker (Android/iOS only) */}
       {showTimePicker && Platform.OS !== 'web' && (
         <DateTimePicker
           value={time}
           mode="time"
           display="default"
-          onChange={(e, selectedTime) => {
+          onChange={(_, selected) => {
             setShowTimePicker(false);
-            if (selectedTime) setTime(selectedTime);
+            if (selected) setTime(selected);
           }}
         />
       )}
 
-      {/* Scrollable Form */}
+      {/* ── Scrollable form ── */}
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.container}
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        style={{ flex: 1 }}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {isEditing ? 'Edit Event' : 'Create New Event'}
           </Text>
+          {/* Ghost element to keep title centred */}
           <View style={{ width: 24 }} />
         </View>
 
-        {/* Event Icon Preview */}
-        <View style={styles.iconPreview}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.iconEmoji}>
-              {CATEGORIES.find(c => c.id === category)?.icon || '📋'}
-            </Text>
-          </View>
-          <Text style={styles.iconLabel}>
-            {CATEGORIES.find(c => c.id === category)?.label || 'Event'}
-          </Text>
+        {/* ── Emoji / icon picker ── */}
+        <View style={styles.iconSection}>
+          <TouchableOpacity
+            style={[
+              styles.iconCircle,
+              { backgroundColor: selectedCategoryInfo?.color || COLORS.primaryLight },
+            ]}
+            onPress={() => setEmojiModal(true)}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.iconEmoji}>{emoji}</Text>
+            <View style={styles.iconEditBadge}>
+              <Ionicons name="pencil" size={10} color={COLORS.white} />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.iconHint}>Tap to change icon</Text>
         </View>
 
-        {/* Form */}
+        {/* ── Form fields ── */}
         <View style={styles.form}>
 
-          {/* Event Name */}
+          {/* Event name */}
           <Text style={styles.label}>Event Name</Text>
-          <View style={styles.inputWrapper}>
-            <MaterialIcons
-              name="event"
-              size={20}
-              color={COLORS.textSecondary}
-              style={styles.inputIcon}
-            />
+          <View style={[styles.inputRow, errors.name && styles.inputRowError]}>
+            <MaterialIcons name="event" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="e.g. Beach Trip"
               value={name}
-              onChangeText={(text) => {
-                setName(text);
-                setErrors({ ...errors, name: null });
-              }}
+              onChangeText={(t) => { setName(t); setErrors({ ...errors, name: null }); }}
               placeholderTextColor={COLORS.textSecondary}
+              maxLength={60}
+              returnKeyType="next"
             />
+            {name.length > 0 && (
+              <TouchableOpacity onPress={() => setName('')}>
+                <Ionicons name="close-circle" size={18} color={COLORS.border} />
+              </TouchableOpacity>
+            )}
           </View>
           {errors.name && (
             <View style={styles.errorRow}>
@@ -284,70 +398,48 @@ export default function CreateEventScreen({ navigation, route }) {
           {/* Category */}
           <Text style={styles.label}>Category</Text>
           <View style={styles.categoryGrid}>
-            {selectableCategories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  {
-                    backgroundColor:
-                      category === cat.id ? COLORS.primary : cat.color,
-                  },
-                ]}
-                onPress={() => setCategory(cat.id)}
-              >
-                <Text style={styles.categoryChipIcon}>{cat.icon}</Text>
-                <Text
+            {selectableCategories.map((cat) => {
+              const active = category === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.categoryChipLabel,
-                    category === cat.id && styles.categoryChipLabelSelected,
+                    styles.categoryChip,
+                    { backgroundColor: active ? COLORS.primary : cat.color },
+                    active && styles.categoryChipActive,
                   ]}
+                  onPress={() => handleCategoryChange(cat.id)}
+                  activeOpacity={0.75}
                 >
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={styles.categoryChipIcon}>{cat.icon}</Text>
+                  <Text style={[styles.categoryChipLabel, active && styles.categoryChipLabelActive]}>
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* Date */}
           <Text style={styles.label}>Date</Text>
           {Platform.OS === 'web' ? (
-            <label style={webInputStyle}>
-              <Ionicons
-                name="calendar"
-                size={20}
-                color={COLORS.textSecondary}
-                style={{ marginRight: 10 }}
-              />
+            <label style={webRowStyle}>
+              <Ionicons name="calendar" size={20} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
               <input
                 type="date"
-                value={`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}
+                value={formatSaveDate(date)}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const [year, month, day] = e.target.value.split('-');
-                    const localDate = new Date(
-                      parseInt(year),
-                      parseInt(month) - 1,
-                      parseInt(day)
-                    );
-                    setDate(localDate);
+                    const [y, m, d] = e.target.value.split('-').map(Number);
+                    setDate(new Date(y, m - 1, d));
                   }
                 }}
-                style={webNativeInputStyle}
+                style={webInputStyle}
               />
             </label>
           ) : (
-            <TouchableOpacity
-              style={styles.inputWrapper}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="calendar"
-                size={20}
-                color={COLORS.textSecondary}
-                style={styles.inputIcon}
-              />
+            <TouchableOpacity style={styles.inputRow} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+              <Ionicons name="calendar" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
               <Text style={styles.pickerText}>{formatDisplayDate(date)}</Text>
               <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -356,72 +448,75 @@ export default function CreateEventScreen({ navigation, route }) {
           {/* Time */}
           <Text style={styles.label}>Time</Text>
           {Platform.OS === 'web' ? (
-            <label style={webInputStyle}>
-              <Ionicons
-                name="time"
-                size={20}
-                color={COLORS.textSecondary}
-                style={{ marginRight: 10 }}
-              />
+            <label style={webRowStyle}>
+              <Ionicons name="time" size={20} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
               <input
                 type="time"
-                value={`${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`}
+                value={`${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}`}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const [hours, minutes] = e.target.value.split(':');
-                    const newTime = new Date();
-                    newTime.setHours(parseInt(hours));
-                    newTime.setMinutes(parseInt(minutes));
-                    setTime(newTime);
+                    const [h, m] = e.target.value.split(':');
+                    const t = new Date();
+                    t.setHours(parseInt(h));
+                    t.setMinutes(parseInt(m));
+                    setTime(t);
                   }
                 }}
-                style={webNativeInputStyle}
+                style={webInputStyle}
               />
             </label>
           ) : (
-            <TouchableOpacity
-              style={styles.inputWrapper}
-              onPress={() => setShowTimePicker(true)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="time"
-                size={20}
-                color={COLORS.textSecondary}
-                style={styles.inputIcon}
-              />
+            <TouchableOpacity style={styles.inputRow} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
+              <Ionicons name="time" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
               <Text style={styles.pickerText}>{formatDisplayTime(time)}</Text>
               <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}
 
           {/* Notes */}
-          <Text style={styles.label}>Notes (optional)</Text>
-          <View style={[styles.inputWrapper, styles.notesWrapper]}>
+          <Text style={styles.label}>Notes <Text style={styles.labelOptional}>(optional)</Text></Text>
+          <View style={[styles.inputRow, styles.notesRow]}>
             <TextInput
               style={[styles.input, styles.notesInput]}
-              placeholder="Add any notes here..."
+              placeholder="Add any notes, reminders, or details…"
               value={notes}
               onChangeText={setNotes}
               multiline
               numberOfLines={4}
               placeholderTextColor={COLORS.textSecondary}
+              textAlignVertical="top"
+              maxLength={500}
             />
           </View>
+          <Text style={styles.charCount}>{notes.length}/500</Text>
 
-          {/* Save Button */}
+          {/* Save button */}
           <TouchableOpacity
-            style={styles.saveButton}
+            style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
             onPress={handleSave}
             disabled={loading}
+            activeOpacity={0.85}
           >
             {loading ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
-              <Text style={styles.saveButtonText}>
-                {isEditing ? 'Update Event' : 'Create Event'}
-              </Text>
+              <>
+                <Ionicons
+                  name={isEditing ? 'checkmark-circle' : 'add-circle'}
+                  size={20}
+                  color={COLORS.white}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.saveBtnText}>
+                  {isEditing ? 'Save Changes' : 'Create Event'}
+                </Text>
+              </>
             )}
+          </TouchableOpacity>
+
+          {/* Discard / cancel link */}
+          <TouchableOpacity style={styles.cancelLink} onPress={() => navigation.goBack()}>
+            <Text style={styles.cancelLinkText}>Discard & go back</Text>
           </TouchableOpacity>
 
         </View>
@@ -430,63 +525,88 @@ export default function CreateEventScreen({ navigation, route }) {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
-    display: 'flex',
-    flexDirection: 'column',
   },
-  container: {
-    flexGrow: 1,
-    paddingBottom: 120,
-  },
+
+  // ── Scroll ──
+  scroll: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 48 },
+
+  // ── Header ──
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
   },
-  iconPreview: {
+
+  // ── Icon / emoji section ──
+  iconSection: {
     alignItems: 'center',
-    marginVertical: 20,
+    paddingVertical: 24,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primaryLight,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+    position: 'relative',
   },
   iconEmoji: {
-    fontSize: 36,
+    fontSize: 38,
   },
-  iconLabel: {
-    fontSize: 14,
+  iconEditBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  iconHint: {
+    fontSize: 12,
     color: COLORS.textSecondary,
-    fontWeight: '500',
   },
+
+  // ── Form ──
   form: {
     paddingHorizontal: 20,
-    gap: 8,
+    gap: 6,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 6,
   },
-  inputWrapper: {
+  labelOptional: {
+    fontWeight: '400',
+    color: COLORS.textSecondary,
+    fontSize: 13,
+  },
+
+  // ── Input rows ──
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -495,9 +615,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: COLORS.background,
+    gap: 8,
+  },
+  inputRowError: {
+    borderColor: COLORS.error,
   },
   inputIcon: {
-    marginRight: 10,
+    // no extra style needed — gap handles spacing
   },
   input: {
     flex: 1,
@@ -510,16 +634,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
   },
+  notesRow: {
+    alignItems: 'flex-start',
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  notesInput: {
+    minHeight: 90,
+    textAlignVertical: 'top',
+    lineHeight: 22,
+  },
+  charCount: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    textAlign: 'right',
+    marginTop: 2,
+  },
+
+  // ── Validation ──
   errorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginLeft: 4,
+    marginTop: 2,
+    marginLeft: 2,
   },
   errorText: {
-    color: COLORS.error,
     fontSize: 12,
+    color: COLORS.error,
   },
+
+  // ── Category chips ──
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -533,38 +678,53 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 6,
   },
-  categoryChipIcon: {
-    fontSize: 16,
+  categoryChipActive: {
+    // shadow for selected state
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
+  categoryChipIcon: { fontSize: 16 },
   categoryChipLabel: {
     fontSize: 13,
     fontWeight: '500',
     color: COLORS.text,
   },
-  categoryChipLabelSelected: {
+  categoryChipLabelActive: {
     color: COLORS.white,
   },
-  notesWrapper: {
-    alignItems: 'flex-start',
-    paddingVertical: 12,
-  },
-  notesInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-    width: '100%',
-  },
-  saveButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
+
+  // ── Save / cancel ──
+  saveBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 15,
+    marginTop: 24,
   },
-  saveButtonText: {
+  saveBtnDisabled: {
+    opacity: 0.7,
+  },
+  saveBtnText: {
     color: COLORS.white,
     fontSize: 16,
     fontWeight: 'bold',
   },
+  cancelLink: {
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  cancelLinkText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textDecorationLine: 'underline',
+  },
+
+  // ── Result modal ──
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -578,47 +738,109 @@ const styles = StyleSheet.create({
     padding: 28,
     alignItems: 'center',
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 360,
     gap: 12,
   },
-  modalIcon: {
-    fontSize: 48,
-  },
+  modalEmoji: { fontSize: 52 },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: COLORS.text,
   },
-  modalMessage: {
+  modalMsg: {
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
   },
-  modalButton: {
+  modalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: COLORS.primary,
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingVertical: 13,
     width: '100%',
-    alignItems: 'center',
   },
-  modalButtonText: {
+  modalBtnText: {
     color: COLORS.white,
     fontSize: 15,
     fontWeight: 'bold',
   },
-  modalButtonOutline: {
+  modalBtnOutline: {
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  modalButtonOutlineText: {
+  modalBtnOutlineText: {
     color: COLORS.text,
     fontSize: 15,
     fontWeight: '500',
   },
-  scrollView: {
-  flex: 1,
-  width: '100%',
-},
+
+  // ── Emoji picker modal ──
+  emojiOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  emojiSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    maxHeight: '75%',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  emojiSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emojiSheetTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  emojiGroup: {
+    marginBottom: 20,
+  },
+  emojiGroupLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  emojiCell: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  emojiCellSelected: {
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  emojiCellText: {
+    fontSize: 24,
+  },
 });

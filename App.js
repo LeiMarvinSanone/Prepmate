@@ -13,7 +13,7 @@ if (Platform.OS === 'web') {
   document.head.appendChild(style);
 }
 
-// Real screens
+// Screens
 import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
@@ -21,15 +21,15 @@ import HomeScreen from './screens/HomeScreen';
 import EventListScreen from './screens/EventListScreen';
 import CreateEventScreen from './screens/CreateEventScreen';
 import AddItemsScreen from './screens/AddItemsScreen';
+import ChecklistDetailScreen from './screens/ChecklistDetailScreen'; // ← NEW
 
-// Still placeholders for now
+// Still placeholders
 const placeholder = (name) => () => (
   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
     <Text>{name} Screen</Text>
   </View>
 );
 
-const ChecklistDetailScreen = placeholder('ChecklistDetail');
 const ManageEventsScreen = placeholder('ManageEvents');
 const RemindersScreen = placeholder('Reminders');
 const SmartSuggestionsScreen = placeholder('SmartSuggestions');
@@ -72,7 +72,7 @@ function MainTabs() {
         name="MyEvents"
         component={EventListScreen}
         options={{ title: 'My Events' }}
-        listeners={({ navigation, route }) => ({
+        listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
             navigation.navigate('MyEvents', { category: null });
