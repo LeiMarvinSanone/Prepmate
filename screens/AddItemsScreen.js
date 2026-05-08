@@ -3,59 +3,107 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, FlatList, ActivityIndicator,
-  Alert, SafeAreaView
+  Alert, SafeAreaView, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import { auth } from '../firebase';
 import {
   addChecklistItem, getChecklistItems,
-  deleteChecklistItem, toggleChecklistItem
+  deleteChecklistItem, toggleChecklistItem,
 } from '../services/checklistService';
 import { getFrequentItems, trackItemUsage } from '../services/historyService';
+import { DEFAULT_SUGGESTIONS } from '../constants/defaultSuggestions';
+
+// Max suggestion chips shown at once — keeps the UI clean
+const MAX_SUGGESTIONS = 8;
 
 export default function AddItemsScreen({ navigation, route }) {
   const { eventId, eventName, category } = route.params;
-  const [items, setItems] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [newItem, setNewItem] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
+
+  const [items,       setItems]       = useState([]);
+  const [suggestions, setSuggestions] = useState([]);  // final merged list
+  const [newItem,     setNewItem]     = useState('');
+  const [loading,     setLoading]     = useState(true);
+  const [adding,      setAdding]      = useState(false);
+  // 'history' | 'default' — lets us show the right label on the chip section
+  const [suggestionSource, setSuggestionSource] = useState('default');
 
   useEffect(() => {
     fetchItems();
     fetchSuggestions();
   }, []);
 
+  // ─── Fetch current checklist items ───────────────────────────────────────
+
   const fetchItems = async () => {
     try {
-      const fetchedItems = await getChecklistItems(eventId);
-      setItems(fetchedItems);
-    } catch (error) {
-      console.error('Error fetching items:', error);
+      const fetched = await getChecklistItems(eventId);
+      setItems(fetched);
+    } catch (err) {
+      console.error('Error fetching items:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // ─── Build merged suggestion list ────────────────────────────────────────
+  // Priority: personal history (already sorted by usageCount desc) → defaults
+  // We cap at MAX_SUGGESTIONS total chips and filter as the checklist grows.
+
   const fetchSuggestions = async () => {
     try {
       const user = auth.currentUser;
-      if (!user || !category) return;
-      const frequent = await getFrequentItems(user.uid, category);
-      setSuggestions(frequent.map(f => f.itemName));
-    } catch (error) {
-      console.error('Error fetching suggestions:', error);
+
+      // 1. Try personal history first
+      let historySuggestions = [];
+      if (user && category) {
+        const frequent = await getFrequentItems(user.uid, category, MAX_SUGGESTIONS);
+        historySuggestions = frequent.map(f => f.itemName);
+      }
+
+      if (historySuggestions.length >= 3) {
+        // Enough personal data — use it exclusively so it feels personalised
+        setSuggestions(historySuggestions);
+        setSuggestionSource('history');
+        return;
+      }
+
+      // 2. Fall back to defaults, filling remaining slots
+      const defaults = DEFAULT_SUGGESTIONS[category] || DEFAULT_SUGGESTIONS['custom'];
+      const historySet = new Set(historySuggestions.map(s => s.toLowerCase()));
+
+      // Deduplicate: exclude items already in personal history
+      const filteredDefaults = defaults.filter(
+        d => !historySet.has(d.toLowerCase())
+      );
+
+      // Merge: personal history first, then defaults up to the cap
+      const slotsLeft = MAX_SUGGESTIONS - historySuggestions.length;
+      const merged = [
+        ...historySuggestions,
+        ...filteredDefaults.slice(0, slotsLeft),
+      ];
+
+      setSuggestions(merged);
+      setSuggestionSource(historySuggestions.length > 0 ? 'history' : 'default');
+    } catch (err) {
+      // If Firestore fails for any reason, fall back silently to defaults
+      console.error('Error fetching suggestions:', err);
+      const defaults = DEFAULT_SUGGESTIONS[category] || DEFAULT_SUGGESTIONS['custom'];
+      setSuggestions(defaults.slice(0, MAX_SUGGESTIONS));
+      setSuggestionSource('default');
     }
   };
+
+  // ─── Checklist operations ─────────────────────────────────────────────────
 
   const handleAddItem = async (itemName = newItem) => {
     const trimmed = itemName.trim();
     if (!trimmed) return;
 
-    // Check duplicate
     if (items.some(i => i.name.toLowerCase() === trimmed.toLowerCase())) {
-      Alert.alert('Duplicate', 'This item is already in your checklist.');
+      Alert.alert('Already added', 'This item is already in your checklist.');
       return;
     }
 
@@ -66,8 +114,8 @@ export default function AddItemsScreen({ navigation, route }) {
       await trackItemUsage(user.uid, trimmed, category);
       setNewItem('');
       fetchItems();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add item.');
+    } catch {
+      Alert.alert('Error', 'Failed to add item. Please try again.');
     } finally {
       setAdding(false);
     }
@@ -77,7 +125,7 @@ export default function AddItemsScreen({ navigation, route }) {
     try {
       await deleteChecklistItem(itemId);
       fetchItems();
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to delete item.');
     }
   };
@@ -86,20 +134,31 @@ export default function AddItemsScreen({ navigation, route }) {
     try {
       await toggleChecklistItem(itemId, currentStatus);
       fetchItems();
-    } catch (error) {
-      console.error('Error toggling item:', error);
+    } catch (err) {
+      console.error('Toggle error:', err);
     }
   };
 
-  const filteredSuggestions = suggestions.filter(
+  // ─── Derived: filter out chips already in the checklist ──────────────────
+
+  const visibleSuggestions = suggestions.filter(
     s => !items.some(i => i.name.toLowerCase() === s.toLowerCase())
   );
+
+  // ─── Suggestion section label ─────────────────────────────────────────────
+
+  const suggestionLabel = suggestionSource === 'history'
+    ? `⭐ Based on your history`
+    : `💡 Suggested for ${category ? category.charAt(0).toUpperCase() + category.slice(1) : 'this event'}`;
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   const renderItem = ({ item }) => (
     <View style={styles.itemRow}>
       <TouchableOpacity
         style={styles.checkbox}
         onPress={() => handleToggle(item.id, item.isChecked)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Ionicons
           name={item.isChecked ? 'checkbox' : 'square-outline'}
@@ -110,7 +169,10 @@ export default function AddItemsScreen({ navigation, route }) {
       <Text style={[styles.itemName, item.isChecked && styles.itemChecked]}>
         {item.name}
       </Text>
-      <TouchableOpacity onPress={() => handleDeleteItem(item.id)}>
+      <TouchableOpacity
+        onPress={() => handleDeleteItem(item.id)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
         <Ionicons name="trash-outline" size={20} color={COLORS.error} />
       </TouchableOpacity>
     </View>
@@ -119,36 +181,43 @@ export default function AddItemsScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Add Items</Text>
-          <Text style={styles.headerSubtitle}>{eventName}</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>{eventName}</Text>
         </View>
+        {/* Done → back to ChecklistDetail, not MyEvents */}
         <TouchableOpacity
-          onPress={() => navigation.navigate('Main', { screen: 'MyEvents' })}
+          onPress={() => navigation.navigate('ChecklistDetail', { eventId, eventName })}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Text style={styles.doneText}>Done</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Add Item Input */}
+      {/* ── Add item input ── */}
       <View style={styles.addWrapper}>
         <TextInput
           style={styles.addInput}
-          placeholder="Add item..."
+          placeholder="Type an item and tap Add…"
           value={newItem}
           onChangeText={setNewItem}
           placeholderTextColor={COLORS.textSecondary}
           onSubmitEditing={() => handleAddItem()}
+          returnKeyType="done"
+          maxLength={60}
         />
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, !newItem.trim() && styles.addButtonDisabled]}
           onPress={() => handleAddItem()}
-          disabled={adding}
+          disabled={adding || !newItem.trim()}
         >
           {adding ? (
             <ActivityIndicator size="small" color={COLORS.white} />
@@ -158,38 +227,42 @@ export default function AddItemsScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      {/* Suggestions */}
-      {filteredSuggestions.length > 0 && (
+      {/* ── Suggestion chips ── */}
+      {visibleSuggestions.length > 0 && (
         <View style={styles.suggestionsSection}>
-          <Text style={styles.suggestionsTitle}>
-            🌟 Suggested for {category}
-          </Text>
+          <Text style={styles.suggestionsTitle}>{suggestionLabel}</Text>
           <View style={styles.suggestionsList}>
-            {filteredSuggestions.map((suggestion, index) => (
+            {visibleSuggestions.map((suggestion, index) => (
               <TouchableOpacity
                 key={index}
                 style={styles.suggestionChip}
                 onPress={() => handleAddItem(suggestion)}
+                activeOpacity={0.75}
               >
                 <Text style={styles.suggestionText}>{suggestion}</Text>
-                <Ionicons name="add" size={16} color={COLORS.primary} />
+                <Ionicons name="add" size={15} color={COLORS.primary} />
               </TouchableOpacity>
             ))}
           </View>
         </View>
       )}
 
-      {/* Items List */}
+      {/* ── Checklist ── */}
       <View style={styles.listSection}>
-        <Text style={styles.listTitle}>
-          Checklist ({items.length} items)
-        </Text>
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>Checklist</Text>
+          <Text style={styles.listCount}>{items.length} items</Text>
+        </View>
+
         {loading ? (
-          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 20 }} />
+          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 24 }} />
         ) : items.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📝</Text>
-            <Text style={styles.emptyText}>No items yet — add some above!</Text>
+            <Text style={styles.emptyTitle}>No items yet</Text>
+            <Text style={styles.emptyText}>
+              Type above or tap a suggestion to get started
+            </Text>
           </View>
         ) : (
           <FlatList
@@ -197,6 +270,8 @@ export default function AddItemsScreen({ navigation, route }) {
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 32 }}
           />
         )}
       </View>
@@ -205,11 +280,15 @@ export default function AddItemsScreen({ navigation, route }) {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
   },
+
+  // ── Header ──
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -220,6 +299,8 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     alignItems: 'center',
+    flex: 1,
+    paddingHorizontal: 12,
   },
   headerTitle: {
     fontSize: 18,
@@ -236,6 +317,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.primary,
   },
+
+  // ── Add input ──
   addWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -260,20 +343,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  addButtonDisabled: {
+    backgroundColor: COLORS.border,
   },
   addButtonText: {
     color: COLORS.white,
     fontWeight: 'bold',
     fontSize: 15,
   },
+
+  // ── Suggestions ──
   suggestionsSection: {
     paddingHorizontal: 20,
     marginBottom: 16,
   },
   suggestionsTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textSecondary,
     marginBottom: 8,
   },
   suggestionsList: {
@@ -287,7 +377,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryLight,
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     gap: 4,
   },
   suggestionText: {
@@ -295,15 +385,26 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '500',
   },
+
+  // ── Checklist ──
   listSection: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   listTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.text,
-    marginBottom: 12,
+  },
+  listCount: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
   },
   itemRow: {
     flexDirection: 'row',
@@ -325,16 +426,26 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     color: COLORS.textSecondary,
   },
+
+  // ── Empty state ──
   emptyState: {
     alignItems: 'center',
-    paddingTop: 40,
+    paddingTop: 48,
   },
   emptyIcon: {
-    fontSize: 40,
-    marginBottom: 10,
+    fontSize: 44,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginBottom: 6,
   },
   emptyText: {
     fontSize: 14,
     color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
