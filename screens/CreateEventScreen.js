@@ -168,21 +168,24 @@ export default function CreateEventScreen({ navigation, route }) {
 
   // ─── Post-save navigation ─────────────────────────────────────────────────
 
-  // Capture eventId from modal state BEFORE clearing it (avoids stale closure)
+  // Capture ALL needed values as locals BEFORE any setState call.
+  // Reading component state (name, category) inside a setTimeout after
+  // setResultModal() fires is the cause of the "something went wrong" error —
+  // the re-render can make those refs stale by the time the callback runs.
   const handleGoAddItems = (savedEventId) => {
+    const capturedName     = name.trim();   // snapshot now, before re-render
+    const capturedCategory = category;      // snapshot now, before re-render
     setResultModal({ visible: false });
-    setTimeout(() => {
-      navigation.replace('AddItems', {
-        eventId:   savedEventId,
-        eventName: name.trim(),
-        category,
-      });
-    }, 100);
+    navigation.replace('AddItems', {
+      eventId:   savedEventId,
+      eventName: capturedName,
+      category:  capturedCategory,
+    });
   };
 
   const handleAfterSave = () => {
     setResultModal({ visible: false });
-    setTimeout(() => navigation.goBack(), 100);
+    navigation.goBack();
   };
 
   // ─── Category change syncs default emoji ─────────────────────────────────

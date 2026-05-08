@@ -2,7 +2,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from './constants/colors';
 
@@ -22,17 +22,16 @@ import EventListScreen        from './screens/EventListScreen';
 import CreateEventScreen      from './screens/CreateEventScreen';
 import AddItemsScreen         from './screens/AddItemsScreen';
 import ChecklistDetailScreen  from './screens/ChecklistDetailScreen';
-import SmartSuggestionsScreen from './screens/SmartSuggestionsScreen'; // ← NEW
+import SmartSuggestionsScreen from './screens/SmartSuggestionsScreen';
+import ProfileScreen          from './screens/ProfileScreen';   // ← NEW
 
-// ── Still placeholders (Phase 3 remaining) ──
-const placeholder = (name) => () => (
+// ── Still placeholder (Phase 3 final) ──
+import { View, Text } from 'react-native';
+const RemindersScreen = () => (
   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-    <Text>{name} Screen</Text>
+    <Text>Reminders Screen</Text>
   </View>
 );
-
-const RemindersScreen = placeholder('Reminders');
-const ProfileScreen   = placeholder('Profile');
 
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -62,7 +61,7 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home"      component={HomeScreen} />
       <Tab.Screen
         name="MyEvents"
         component={EventListScreen}
