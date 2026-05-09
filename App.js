@@ -2,50 +2,51 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform } from 'react-native';
+import { Platform, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from './constants/colors';
 
-// Fix browser input outline on web
-if (Platform.OS === 'web') {
-  const style = document.createElement('style');
-  style.textContent = `* { outline: none !important; box-shadow: none !important; }`;
-  document.head.appendChild(style);
-}
-
-// ── Screens ──
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import SplashScreen           from './screens/SplashScreen';
 import LoginScreen            from './screens/LoginScreen';
-import SignUpScreen           from './screens/SignUpScreen';
+import SignUpScreen            from './screens/SignUpScreen';
 import HomeScreen             from './screens/HomeScreen';
 import EventListScreen        from './screens/EventListScreen';
 import CreateEventScreen      from './screens/CreateEventScreen';
 import AddItemsScreen         from './screens/AddItemsScreen';
 import ChecklistDetailScreen  from './screens/ChecklistDetailScreen';
 import SmartSuggestionsScreen from './screens/SmartSuggestionsScreen';
-import ProfileScreen          from './screens/ProfileScreen';   // ← NEW
+import ProfileScreen          from './screens/ProfileScreen';
 
-// ── Still placeholder (Phase 3 final) ──
-import { View, Text } from 'react-native';
-const RemindersScreen = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-    <Text>Reminders Screen</Text>
-  </View>
-);
+if (Platform.OS === 'web') {
+  const style = document.createElement('style');
+  style.textContent = `* { outline: none !important; box-shadow: none !important; }`;
+  document.head.appendChild(style);
+}
 
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
 
+function RemindersPlaceholder() {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <Text style={{ color: colors.text }}>Reminders Screen</Text>
+    </View>
+  );
+}
+
 function MainTabs() {
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor:   COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarActiveTintColor:   colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
           borderTopWidth:  1,
-          borderTopColor:  COLORS.border,
+          borderTopColor:  colors.border,
+          backgroundColor: colors.white,
           paddingBottom:   5,
           paddingTop:      5,
           height:          60,
@@ -73,18 +74,19 @@ function MainTabs() {
           },
         })}
       />
-      <Tab.Screen name="Reminders" component={RemindersScreen} />
+      <Tab.Screen name="Reminders" component={RemindersPlaceholder} />
       <Tab.Screen name="Profile"   component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
-export default function App() {
+function AppNavigator() {
+  const { colors } = useTheme();
   return (
     <NavigationContainer>
       <Stack.Navigator
         initialRouteName="Splash"
-        screenOptions={{ headerShown: false }}
+        screenOptions={{ headerShown: false, cardStyle: { backgroundColor: colors.background } }}
       >
         <Stack.Screen name="Splash"           component={SplashScreen} />
         <Stack.Screen name="Login"            component={LoginScreen} />
@@ -96,5 +98,13 @@ export default function App() {
         <Stack.Screen name="SmartSuggestions" component={SmartSuggestionsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppNavigator />
+    </ThemeProvider>
   );
 }
