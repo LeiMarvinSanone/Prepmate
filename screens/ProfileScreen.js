@@ -3,76 +3,32 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Modal, TextInput, ActivityIndicator,
-  SafeAreaView, Alert,
+  SafeAreaView, Alert, Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { signOut, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
 import { COLORS } from '../constants/colors';
-import { getUserDocument } from '../services/userService';
 import { getUserEvents } from '../services/eventService';
 import { getAllItemHistory } from '../services/historyService';
 
-// ─── Static menu structure ────────────────────────────────────────────────────
+// ─── Avatar helpers (also exported for HomeScreen to reuse) ───────────────────
 
-const MENU_SECTIONS = [
-  {
-    title: 'Account',
-    items: [
-      {
-        id: 'edit_name',
-        icon: 'person-outline',
-        label: 'Edit Display Name',
-        arrow: true,
-      },
-      {
-        id: 'smart_suggestions',
-        icon: 'bulb-outline',
-        label: 'Smart Suggestions',
-        arrow: true,
-      },
-    ],
-  },
-  {
-    title: 'App',
-    items: [
-      {
-        id: 'about',
-        icon: 'information-circle-outline',
-        label: 'About PrepMate',
-        arrow: true,
-      },
-      {
-        id: 'help',
-        icon: 'help-circle-outline',
-        label: 'Help & Support',
-        arrow: true,
-      },
-    ],
-  },
-];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-// Build initials from displayName or fall back to first letter of email
-const getInitials = (displayName, email) => {
+export const getInitials = (displayName, email) => {
   if (displayName && displayName.trim()) {
     const parts = displayName.trim().split(' ').filter(Boolean);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     return parts[0][0].toUpperCase();
   }
   if (email) return email[0].toUpperCase();
   return '?';
 };
 
-// Pick a consistent avatar background from the initials
-const AVATAR_COLORS = ['#2E7D32', '#1565C0', '#6A1B9A', '#AD1457', '#E65100', '#00695C'];
-const getAvatarColor = (initials) => {
-  const code = initials.charCodeAt(0) || 0;
-  return AVATAR_COLORS[code % AVATAR_COLORS.length];
+const AVATAR_BG_COLORS = ['#2E7D32','#1565C0','#6A1B9A','#AD1457','#E65100','#00695C'];
+export const getAvatarColor = (initials) => {
+  const code = (initials || '?').charCodeAt(0);
+  return AVATAR_BG_COLORS[code % AVATAR_BG_COLORS.length];
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -80,45 +36,46 @@ const getAvatarColor = (initials) => {
 export default function ProfileScreen({ navigation }) {
   const user = auth.currentUser;
 
-  // ── State ──
-  const [displayName,   setDisplayName]   = useState(user?.displayName || '');
-  const [stats,         setStats]         = useState({ events: 0, items: 0 });
-  const [statsLoading,  setStatsLoading]  = useState(true);
+  const [displayName,  setDisplayName]  = useState(user?.displayName || '');
+  const [stats,        setStats]        = useState({ events: 0, items: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [isDark,       setIsDark]       = useState(false);
 
   // Edit name modal
-  const [editModal,     setEditModal]     = useState(false);
-  const [newName,       setNewName]       = useState('');
-  const [nameError,     setNameError]     = useState('');
-  const [savingName,    setSavingName]    = useState(false);
+  const [editModal,  setEditModal]  = useState(false);
+  const [newName,    setNewName]    = useState('');
+  const [nameError,  setNameError]  = useState('');
+  const [savingName, setSavingName] = useState(false);
 
-  // About modal
-  const [aboutModal,    setAboutModal]    = useState(false);
+  // Info modals
+  const [aboutModal, setAboutModal] = useState(false);
+  const [helpModal,  setHelpModal]  = useState(false);
 
-  // Help modal
-  const [helpModal,     setHelpModal]     = useState(false);
-
-  // Logout state
-  const [loggingOut,    setLoggingOut]    = useState(false);
-
-  // ── Load stats on focus ───────────────────────────────────────────────────
+  // ── Load stats on every focus ─────────────────────────────────────────────
 
   useFocusEffect(
     useCallback(() => {
-      loadStats();
-      // Sync displayName in case it was updated elsewhere
       setDisplayName(auth.currentUser?.displayName || '');
+      loadStats();
     }, [])
   );
 
   const loadStats = async () => {
-    if (!user) return;
+    if (!user) {
+      setStatsLoading(false);
+      return;
+    }
     setStatsLoading(true);
     try {
-      const [events, history] = await Promise.all([
+      // Promise.allSettled — one failure won't zero out the other stat
+      const [eventsResult, historyResult] = await Promise.allSettled([
         getUserEvents(user.uid),
         getAllItemHistory(user.uid),
       ]);
-      setStats({ events: events.length, items: history.length });
+      setStats({
+        events: eventsResult.status  === 'fulfilled' ? eventsResult.value.length  : 0,
+        items:  historyResult.status === 'fulfilled' ? historyResult.value.length : 0,
+      });
     } catch (err) {
       console.error('Profile stats error:', err);
     } finally {
@@ -127,6 +84,8 @@ export default function ProfileScreen({ navigation }) {
   };
 
   // ── Logout ────────────────────────────────────────────────────────────────
+  // NOTE: No `disabled` prop on the button — the previous version used a
+  // `loggingOut` state that could get stuck and permanently block the button.
 
   const handleLogout = () => {
     Alert.alert(
@@ -138,15 +97,13 @@ export default function ProfileScreen({ navigation }) {
           text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
-            setLoggingOut(true);
             try {
               await signOut(auth);
-              // Reset navigation stack entirely so back button can't return
+              // reset() wipes the nav stack so back button can't return to the app
               navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
             } catch (err) {
               console.error('Logout error:', err);
               Alert.alert('Error', 'Could not log out. Please try again.');
-              setLoggingOut(false);
             }
           },
         },
@@ -154,7 +111,7 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  // ── Edit display name ─────────────────────────────────────────────────────
+  // ── Edit name ─────────────────────────────────────────────────────────────
 
   const openEditModal = () => {
     setNewName(displayName);
@@ -164,49 +121,23 @@ export default function ProfileScreen({ navigation }) {
 
   const handleSaveName = async () => {
     const trimmed = newName.trim();
-    if (!trimmed) {
-      setNameError('Name cannot be empty.');
-      return;
-    }
-    if (trimmed === displayName) {
-      setEditModal(false);
-      return;
-    }
+    if (!trimmed) { setNameError('Name cannot be empty.'); return; }
+    if (trimmed === displayName) { setEditModal(false); return; }
     setSavingName(true);
     try {
       await updateProfile(auth.currentUser, { displayName: trimmed });
       setDisplayName(trimmed);
       setEditModal(false);
-    } catch (err) {
-      console.error('Update name error:', err);
+    } catch {
       setNameError('Could not update name. Please try again.');
     } finally {
       setSavingName(false);
     }
   };
 
-  // ── Menu item press ───────────────────────────────────────────────────────
-
-  const handleMenuPress = (id) => {
-    switch (id) {
-      case 'edit_name':
-        openEditModal();
-        break;
-      case 'smart_suggestions':
-        navigation.navigate('SmartSuggestions');
-        break;
-      case 'about':
-        setAboutModal(true);
-        break;
-      case 'help':
-        setHelpModal(true);
-        break;
-    }
-  };
-
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const initials   = getInitials(displayName, user?.email);
+  const initials    = getInitials(displayName, user?.email);
   const avatarColor = getAvatarColor(initials);
   const email       = user?.email || '';
 
@@ -231,9 +162,7 @@ export default function ProfileScreen({ navigation }) {
               returnKeyType="done"
               onSubmitEditing={handleSaveName}
             />
-            {nameError ? (
-              <Text style={styles.modalError}>{nameError}</Text>
-            ) : null}
+            {!!nameError && <Text style={styles.modalError}>{nameError}</Text>}
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.modalBtnOutline}
@@ -248,9 +177,8 @@ export default function ProfileScreen({ navigation }) {
                 disabled={savingName}
               >
                 {savingName
-                  ? <ActivityIndicator size="small" color={COLORS.white} />
-                  : <Text style={styles.modalBtnText}>Save</Text>
-                }
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.modalBtnText}>Save</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -265,16 +193,10 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.modalTitle}>PrepMate</Text>
             <Text style={styles.modalVersion}>Version 1.0.0</Text>
             <Text style={styles.modalBodyText}>
-              PrepMate is a smart checklist app that helps you stay organized
-              for every event.
+              PrepMate is a smart checklist app that helps you stay organized for every event — from beach trips to job interviews.
             </Text>
-            <Text style={styles.modalBodyText}>
-              Built with React Native (Expo) and Firebase.
-            </Text>
-            <TouchableOpacity
-              style={[styles.modalBtn, { width: '100%' }]}
-              onPress={() => setAboutModal(false)}
-            >
+            <Text style={styles.modalBodyText}>Built with React Native (Expo) and Firebase.</Text>
+            <TouchableOpacity style={[styles.modalBtn, { width: '100%' }]} onPress={() => setAboutModal(false)}>
               <Text style={styles.modalBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -284,125 +206,144 @@ export default function ProfileScreen({ navigation }) {
       {/* ── Help modal ── */}
       <Modal visible={helpModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+          <View style={[styles.modalBox, { maxHeight: '80%' }]}>
             <Text style={{ fontSize: 44 }}>🤝</Text>
             <Text style={styles.modalTitle}>Help & Support</Text>
             {[
-              ['How do I create an event?',
-                'Tap the + button on the My Events tab or the Home screen.'],
-              ['How do smart suggestions work?',
-                'PrepMate tracks items you add and suggests them based on past usage.'],
-              ['Can I reuse a checklist?',
-                'Yes — open any event, tap Edit, then use the refresh button to uncheck all items.'],
-              ['How do I delete an event?',
-                'Swipe left on any event in My Events, or tap the ⋯ menu.'],
+              ['How do I create an event?', 'Tap the + button on the My Events tab or the Home screen.'],
+              ['How do smart suggestions work?', 'PrepMate tracks items you add and suggests them based on past usage.'],
+              ['Can I reuse a checklist?', 'Yes — open any event, tap Edit, then use the refresh button to uncheck all items.'],
+              ['How do I delete an event?', 'Swipe left on any event in My Events, or tap the ⋯ menu.'],
             ].map(([q, a]) => (
               <View key={q} style={styles.helpItem}>
                 <Text style={styles.helpQuestion}>{q}</Text>
                 <Text style={styles.helpAnswer}>{a}</Text>
               </View>
             ))}
-            <TouchableOpacity
-              style={[styles.modalBtn, { width: '100%' }]}
-              onPress={() => setHelpModal(false)}
-            >
+            <TouchableOpacity style={[styles.modalBtn, { width: '100%' }]} onPress={() => setHelpModal(false)}>
               <Text style={styles.modalBtnText}>Got it</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
         {/* ── Avatar card ── */}
         <View style={styles.avatarCard}>
-          {/* Avatar circle with initials */}
           <View style={[styles.avatarCircle, { backgroundColor: avatarColor }]}>
             <Text style={styles.avatarInitials}>{initials}</Text>
           </View>
-
-          {/* Name + email */}
-          <Text style={styles.profileName} numberOfLines={1}>
-            {displayName || 'Unnamed User'}
-          </Text>
-          <Text style={styles.profileEmail} numberOfLines={1}>{email}</Text>
-
-          {/* Edit name shortcut */}
+          <Text style={styles.profileName}>{displayName || 'Unnamed User'}</Text>
+          <Text style={styles.profileEmail}>{email}</Text>
           <TouchableOpacity style={styles.editNameBtn} onPress={openEditModal}>
             <Ionicons name="pencil" size={14} color={COLORS.primary} />
             <Text style={styles.editNameText}>Edit name</Text>
           </TouchableOpacity>
 
-          {/* Stats row */}
+          {/* Stats */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               {statsLoading
                 ? <ActivityIndicator size="small" color={COLORS.primary} />
-                : <Text style={styles.statNumber}>{stats.events}</Text>
-              }
+                : <Text style={styles.statNumber}>{stats.events}</Text>}
               <Text style={styles.statLabel}>Events</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               {statsLoading
                 ? <ActivityIndicator size="small" color={COLORS.primary} />
-                : <Text style={styles.statNumber}>{stats.items}</Text>
-              }
+                : <Text style={styles.statNumber}>{stats.items}</Text>}
               <Text style={styles.statLabel}>Items Tracked</Text>
             </View>
           </View>
         </View>
 
-        {/* ── Menu sections ── */}
-        {MENU_SECTIONS.map((section) => (
-          <View key={section.title} style={styles.menuSection}>
-            <Text style={styles.menuSectionTitle}>{section.title}</Text>
-            <View style={styles.menuCard}>
-              {section.items.map((item, idx) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.menuRow,
-                    idx < section.items.length - 1 && styles.menuRowBorder,
-                  ]}
-                  onPress={() => handleMenuPress(item.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.menuRowLeft}>
-                    <View style={styles.menuIconWrap}>
-                      <Ionicons name={item.icon} size={20} color={COLORS.primary} />
-                    </View>
-                    <Text style={styles.menuLabel}>{item.label}</Text>
+        {/* ── Account menu ── */}
+        <View style={styles.menuSection}>
+          <Text style={styles.menuSectionTitle}>Account</Text>
+          <View style={styles.menuCard}>
+            {[
+              { id: 'edit_name',         icon: 'person-outline', label: 'Edit Display Name' },
+              { id: 'smart_suggestions', icon: 'bulb-outline',   label: 'Smart Suggestions' },
+            ].map((item, idx, arr) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.menuRow, idx < arr.length - 1 && styles.menuRowBorder]}
+                onPress={() => {
+                  if (item.id === 'edit_name')         openEditModal();
+                  if (item.id === 'smart_suggestions') navigation.navigate('SmartSuggestions');
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={styles.menuIconWrap}>
+                    <Ionicons name={item.icon} size={20} color={COLORS.primary} />
                   </View>
-                  {item.arrow && (
-                    <Ionicons name="chevron-forward" size={18} color={COLORS.border} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.border} />
+              </TouchableOpacity>
+            ))}
           </View>
-        ))}
+        </View>
 
-        {/* ── Logout button ── */}
+        {/* ── App menu ── */}
+        <View style={styles.menuSection}>
+          <Text style={styles.menuSectionTitle}>App</Text>
+          <View style={styles.menuCard}>
+
+            {/* Dark mode row — Switch instead of chevron */}
+            <View style={[styles.menuRow, styles.menuRowBorder]}>
+              <View style={styles.menuRowLeft}>
+                <View style={styles.menuIconWrap}>
+                  <Ionicons name={isDark ? 'moon' : 'sunny-outline'} size={20} color={COLORS.primary} />
+                </View>
+                <Text style={styles.menuLabel}>Dark Mode</Text>
+              </View>
+              <Switch
+                value={isDark}
+                onValueChange={(val) => setIsDark(val)}
+                trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            {[
+              { id: 'about', icon: 'information-circle-outline', label: 'About PrepMate' },
+              { id: 'help',  icon: 'help-circle-outline',        label: 'Help & Support' },
+            ].map((item, idx, arr) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.menuRow, idx < arr.length - 1 && styles.menuRowBorder]}
+                onPress={() => {
+                  if (item.id === 'about') setAboutModal(true);
+                  if (item.id === 'help')  setHelpModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuRowLeft}>
+                  <View style={styles.menuIconWrap}>
+                    <Ionicons name={item.icon} size={20} color={COLORS.primary} />
+                  </View>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.border} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Logout ── */}
         <View style={styles.logoutSection}>
+          {/* No disabled prop — removing loggingOut state was the fix */}
           <TouchableOpacity
             style={styles.logoutBtn}
             onPress={handleLogout}
-            disabled={loggingOut}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
           >
-            {loggingOut ? (
-              <ActivityIndicator color={COLORS.error} />
-            ) : (
-              <>
-                <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-                <Text style={styles.logoutText}>Log Out</Text>
-              </>
-            )}
+            <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
+            <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </View>
 
@@ -411,284 +352,107 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scroll: { flex: 1 },
+  safeArea:      { flex: 1, backgroundColor: COLORS.background },
+  scroll:        { flex: 1 },
   scrollContent: { paddingBottom: 48 },
 
-  // ── Avatar card ──
   avatarCard: {
     backgroundColor: COLORS.white,
-    marginHorizontal: 16,
-    marginTop: 20,
-    borderRadius: 20,
-    padding: 24,
+    marginHorizontal: 16, marginTop: 20,
+    borderRadius: 20, padding: 24,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   avatarCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    width: 88, height: 88, borderRadius: 44,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
   },
-  avatarInitials: {
-    fontSize: 34,
-    fontWeight: 'bold',
-    color: COLORS.white,
-    letterSpacing: 1,
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: 12,
-  },
+  avatarInitials: { fontSize: 34, fontWeight: 'bold', color: '#fff', letterSpacing: 1 },
+  profileName:    { fontSize: 20, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
+  profileEmail:   { fontSize: 13, color: COLORS.textSecondary, marginBottom: 12 },
   editNameBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 20,
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: 20, marginBottom: 20,
   },
-  editNameText: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: '500',
-  },
+  editNameText: { fontSize: 13, color: COLORS.primary, fontWeight: '500' },
 
-  // ── Stats ──
   statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 16,
+    flexDirection: 'row', alignItems: 'center', width: '100%',
+    borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 16,
   },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  statDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: COLORS.border,
-  },
+  statItem:    { flex: 1, alignItems: 'center', gap: 4 },
+  statNumber:  { fontSize: 24, fontWeight: 'bold', color: COLORS.primary },
+  statLabel:   { fontSize: 12, color: COLORS.textSecondary },
+  statDivider: { width: 1, height: 36, backgroundColor: COLORS.border },
 
-  // ── Menu sections ──
-  menuSection: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-  },
+  menuSection:      { marginTop: 24, paddingHorizontal: 16 },
   menuSectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    marginLeft: 4,
+    fontSize: 12, fontWeight: '600', color: COLORS.textSecondary,
+    letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, marginLeft: 4,
   },
   menuCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
+    backgroundColor: COLORS.white, borderRadius: 16,
+    borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden',
   },
   menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  menuRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
+  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  menuRowLeft:   { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   menuIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 36, height: 36, borderRadius: 10,
     backgroundColor: COLORS.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  menuLabel: {
-    fontSize: 15,
-    color: COLORS.text,
-    fontWeight: '500',
-  },
+  menuLabel: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
 
-  // ── Logout ──
-  logoutSection: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-  },
+  logoutSection: { paddingHorizontal: 16, marginTop: 24 },
   logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.white, borderRadius: 16,
     paddingVertical: 15,
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
+    borderWidth: 1, borderColor: '#FFCDD2',
   },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.error,
-  },
+  logoutText: { fontSize: 16, fontWeight: '600', color: COLORS.error },
 
-  // ── Modals (shared base) ──
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
   },
   modalBox: {
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 380,
-    alignItems: 'center',
-    gap: 12,
+    backgroundColor: COLORS.white, borderRadius: 20,
+    padding: 24, width: '100%', maxWidth: 380,
+    alignItems: 'center', gap: 12,
   },
-  modalTitle: {
-    fontSize: 19,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    textAlign: 'center',
-  },
-  modalVersion: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: -6,
-  },
-  modalBodyText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-
-  // Edit name modal
+  modalTitle:    { fontSize: 19, fontWeight: 'bold', color: COLORS.text, textAlign: 'center' },
+  modalVersion:  { fontSize: 13, color: COLORS.textSecondary, marginTop: -6 },
+  modalBodyText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
   modalInput: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: COLORS.text,
-    backgroundColor: COLORS.background,
+    width: '100%', borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: COLORS.text, backgroundColor: COLORS.background,
   },
-  modalInputError: {
-    borderColor: COLORS.error,
-  },
-  modalError: {
-    fontSize: 12,
-    color: COLORS.error,
-    alignSelf: 'flex-start',
-    marginTop: -4,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 10,
-    width: '100%',
-    marginTop: 4,
-  },
+  modalInputError:     { borderColor: COLORS.error },
+  modalError:          { fontSize: 12, color: COLORS.error, alignSelf: 'flex-start', marginTop: -4 },
+  modalActions:        { flexDirection: 'row', gap: 10, width: '100%', marginTop: 4 },
   modalBtn: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 1, backgroundColor: COLORS.primary, borderRadius: 12,
+    paddingVertical: 13, alignItems: 'center', justifyContent: 'center',
   },
-  modalBtnText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
+  modalBtnText:        { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   modalBtnOutline: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flex: 1, borderRadius: 12, paddingVertical: 13,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  modalBtnOutlineText: {
-    color: COLORS.text,
-    fontWeight: '500',
-    fontSize: 15,
-  },
-
-  // Help modal
-  helpItem: {
-    width: '100%',
-    gap: 3,
-  },
-  helpQuestion: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  helpAnswer: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    lineHeight: 19,
-  },
+  modalBtnOutlineText: { color: COLORS.text, fontWeight: '500', fontSize: 15 },
+  helpItem:            { width: '100%', gap: 3 },
+  helpQuestion:        { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  helpAnswer:          { fontSize: 13, color: COLORS.textSecondary, lineHeight: 19 },
 });

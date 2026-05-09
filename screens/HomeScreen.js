@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../firebase';
 import { COLORS } from '../constants/colors';
 import { CATEGORIES } from '../constants/categories';
+// Reuse the same initials + colour helpers from ProfileScreen
+import { getInitials, getAvatarColor } from './ProfileScreen';
 
 export default function HomeScreen({ navigation }) {
   const [user, setUser] = useState(null);
@@ -47,39 +49,44 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleCategoryPress = (category) => {
-  if (category.id === 'custom') {
-    navigation.navigate('CreateEvent');
-  } else {
-    navigation.navigate('Main', {
-      screen: 'MyEvents',
-      params: { category: category },
-    });
-  }
-};
+    if (category.id === 'custom') {
+      navigation.navigate('CreateEvent');
+    } else {
+      navigation.navigate('Main', {
+        screen: 'MyEvents',
+        params: { category: category },
+      });
+    }
+  };
+
+  // Build the same avatar the Profile tab shows
+  const initials    = getInitials(user?.displayName, user?.email);
+  const avatarColor = getAvatarColor(initials);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>{getGreeting()},</Text>
-            <Text style={styles.userName}>
-              {getUserName()}! 👋
-            </Text>
+            <Text style={styles.userName}>{getUserName()}! 👋</Text>
             <Text style={styles.subtitle}>What are you preparing for?</Text>
           </View>
+
+          {/* Avatar button — matches Profile tab exactly */}
           <TouchableOpacity
-            style={styles.profileButton}
+            style={[styles.avatarCircle, { backgroundColor: avatarColor }]}
             onPress={() => navigation.navigate('Profile')}
+            activeOpacity={0.8}
           >
-            <Ionicons name="person-circle" size={44} color={COLORS.primary} />
+            <Text style={styles.avatarInitials}>{initials}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
+        {/* ── Search Bar ── */}
         <View style={styles.searchWrapper}>
           <Ionicons name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
           <TextInput
@@ -96,7 +103,7 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
 
-        {/* Categories Grid */}
+        {/* ── Categories Grid ── */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Categories</Text>
           <Text style={styles.sectionCount}>{filteredCategories.length} found</Text>
@@ -131,121 +138,51 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
+  safeArea:  { flex: 1, backgroundColor: COLORS.white },
+  container: { flex: 1, paddingHorizontal: 20 },
+
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingTop: 20,
-    paddingBottom: 16,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', paddingTop: 20, paddingBottom: 16,
   },
-  headerLeft: {
-    flex: 1,
+  headerLeft: { flex: 1 },
+  greeting:   { fontSize: 14, color: COLORS.textSecondary },
+  userName:   { fontSize: 24, fontWeight: 'bold', color: COLORS.text, marginTop: 2 },
+  subtitle:   { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
+
+  // Same dimensions as ProfileScreen's avatarCircle
+  avatarCircle: {
+    width: 44, height: 44, borderRadius: 22, marginLeft: 12,
+    justifyContent: 'center', alignItems: 'center',
   },
-  greeting: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginTop: 2,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-  },
-  profileButton: {
-    marginLeft: 12,
-  },
+  avatarInitials: { fontSize: 17, fontWeight: 'bold', color: '#fff', letterSpacing: 0.5 },
+
   searchWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.background, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 20,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: COLORS.text,
-    outline: 'none',
-  },
+  searchIcon:  { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: COLORS.text, outline: 'none' },
+
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  sectionCount: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    paddingBottom: 24,
-  },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text },
+  sectionCount: { fontSize: 13, color: COLORS.textSecondary },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 24 },
   categoryCard: {
-    width: '47%',
-    borderRadius: 16,
-    padding: 16,
-    minHeight: 120,
-    justifyContent: 'flex-end',
+    width: '47%', borderRadius: 16, padding: 16, minHeight: 120, justifyContent: 'flex-end',
   },
-  categoryIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  categoryLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  categorySubtitle: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    lineHeight: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
+  categoryIcon:     { fontSize: 32, marginBottom: 8 },
+  categoryLabel:    { fontSize: 16, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
+  categorySubtitle: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16 },
+
+  emptyState:    { alignItems: 'center', paddingVertical: 60 },
+  emptyIcon:     { fontSize: 48, marginBottom: 12 },
+  emptyTitle:    { fontSize: 18, fontWeight: 'bold', color: COLORS.text, marginBottom: 6 },
+  emptySubtitle: { fontSize: 14, color: COLORS.textSecondary },
 });
