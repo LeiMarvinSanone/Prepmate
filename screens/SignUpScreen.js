@@ -16,6 +16,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function SignUpScreen({ navigation }) {
   const { colors: COLORS } = useTheme();
+  const styles = makeStyles(COLORS);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -115,7 +116,6 @@ export default function SignUpScreen({ navigation }) {
     }
   };
 
-  const styles = makeStyles(COLORS);
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -310,6 +310,8 @@ export default function SignUpScreen({ navigation }) {
     </KeyboardAvoidingView>
   );
 }
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const makeStyles = (COLORS) => StyleSheet.create({
   container: {

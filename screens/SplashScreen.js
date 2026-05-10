@@ -8,6 +8,7 @@ import { createUserDocument } from '../services/userService';
 
 export default function SplashScreen({ navigation }) {
   const { colors: COLORS } = useTheme();
+  const styles = makeStyles(COLORS);
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -22,7 +23,6 @@ export default function SplashScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
-  const styles = makeStyles(COLORS);
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
@@ -38,6 +38,8 @@ export default function SplashScreen({ navigation }) {
     </View>
   );
 }
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const makeStyles = (COLORS) => StyleSheet.create({
   container: {

@@ -20,6 +20,7 @@ import { CATEGORIES } from '../constants/categories';
 
 export default function ChecklistDetailScreen({ navigation, route }) {
   const { colors: COLORS } = useTheme();
+  const styles = makeStyles(COLORS);
   const { eventId, eventName } = route.params;
 
   const [event, setEvent] = useState(null);
@@ -258,7 +259,6 @@ export default function ChecklistDetailScreen({ navigation, route }) {
 
   // ─── Main render ──────────────────────────────────────────────────────────
 
-  const styles = makeStyles(COLORS);
   return (
     <SafeAreaView style={styles.safeArea}>
 

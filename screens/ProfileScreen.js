@@ -67,6 +67,8 @@ export default function ProfileScreen({ navigation }) {
   // Navigating to Splash relies on onAuthStateChanged firing fast enough,
   // which is not guaranteed on web. Direct Login navigation is reliable.
   const handleLogout = () => {
+    console.log('Logout pressed');
+
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -75,7 +77,11 @@ export default function ProfileScreen({ navigation }) {
           try {
             await signOut(auth);
             // Reset the entire nav stack to Login so back button is gone
-            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+            // ProfileScreen is inside MainTabs (tab navigator).
+            // navigation.reset() only resets the tab stack — not the root stack.
+            // getParent() climbs to the root Stack navigator where Login lives.
+            const rootNav = navigation.getParent() || navigation;
+            rootNav.reset({ index: 0, routes: [{ name: 'Login' }] });
           } catch (err) {
             console.error('Logout error:', err);
             Alert.alert('Error', 'Could not log out. Please try again.');

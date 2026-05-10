@@ -20,6 +20,7 @@ const MAX_SUGGESTIONS = 8;
 
 export default function AddItemsScreen({ navigation, route }) {
   const { colors: COLORS } = useTheme();
+  const styles = makeStyles(COLORS);
   const { eventId, eventName, category } = route.params;
 
   const [items,       setItems]       = useState([]);
@@ -179,7 +180,6 @@ export default function AddItemsScreen({ navigation, route }) {
     </View>
   );
 
-  const styles = makeStyles(COLORS);
   return (
     <SafeAreaView style={styles.safeArea}>
 
@@ -281,6 +281,8 @@ export default function AddItemsScreen({ navigation, route }) {
     </SafeAreaView>
   );
 }
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

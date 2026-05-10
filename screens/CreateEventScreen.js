@@ -13,7 +13,7 @@ import { CATEGORIES } from '../constants/categories';
 import { createEvent, updateEvent } from '../services/eventService';
 
 // ─── Emoji picker data ────────────────────────────────────────────────────────
-// Grouped so the picker sheet feels organised and scannable
+// Grouped so the picker sheet feels organized and scannable
 const EMOJI_GROUPS = [
   {
     label: 'Travel & Outdoor',
@@ -41,10 +41,10 @@ const EMOJI_GROUPS = [
   },
 ];
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CreateEventScreen({ navigation, route }) {
   const { colors: COLORS } = useTheme();
+  const styles = makeStyles(COLORS);
   const existingEvent   = route.params?.event          || null;
   const defaultCategory = route.params?.defaultCategory || 'outdoor';
 
@@ -223,7 +223,6 @@ export default function CreateEventScreen({ navigation, route }) {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  const styles = makeStyles(COLORS);
   return (
     <SafeAreaView style={styles.safeArea}>
 
@@ -529,6 +528,10 @@ export default function CreateEventScreen({ navigation, route }) {
     </SafeAreaView>
   );
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

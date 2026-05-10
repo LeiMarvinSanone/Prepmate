@@ -16,6 +16,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
   const { colors: COLORS } = useTheme();
+  const styles = makeStyles(COLORS);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -104,7 +105,6 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  const styles = makeStyles(COLORS);
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -250,6 +250,8 @@ export default function LoginScreen({ navigation }) {
     </KeyboardAvoidingView>
   );
 }
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const makeStyles = (COLORS) => StyleSheet.create({
   container: {
