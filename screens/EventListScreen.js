@@ -1,9 +1,9 @@
 // screens/EventListScreen.js
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   FlatList, TextInput, ActivityIndicator,
-  SafeAreaView, Modal
+  SafeAreaView, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,115 +12,149 @@ import { useTheme } from '../context/ThemeContext';
 import { getUserEvents, deleteEvent } from '../services/eventService';
 import { deleteAllEventItems, getChecklistItems, getChecklistProgress } from '../services/checklistService';
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function EventListScreen({ navigation, route }) {
   const { colors: COLORS } = useTheme();
   const styles = makeStyles(COLORS);
-  const [events, setEvents] = useState([]);
-  const [filteredEvents, setFilteredEvents] = useState([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [deleteModal, setDeleteModal] = useState({ visible: false, eventId: null });
 
-  const fetchEvents = async (categoryFilter) => {
+  // allEvents holds every event fetched from Firestore (no filter applied).
+  // filteredEvents is the derived list shown in the UI (category + search).
+  const [allEvents,      setAllEvents]      = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
+  const [search,         setSearch]         = useState('');
+  const [loading,        setLoading]        = useState(true);
+  const [deleteModal,    setDeleteModal]    = useState({ visible: false, eventId: null });
+
+  // activeCategoryRef lets us read the current category synchronously inside
+  // callbacks without stale-closure issues. It mirrors the route param.
+  const activeCategoryRef = useRef(null);
+
+  // ── Fetch ALL events from Firestore once, store unfiltered ────────────────
+
+  const fetchAllEvents = async () => {
     setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
 
-      let fetchedEvents = await getUserEvents(user.uid);
+      const fetched = await getUserEvents(user.uid);
 
-      if (categoryFilter && categoryFilter.id) {
-        fetchedEvents = fetchedEvents.filter(
-          e => e.category === categoryFilter.id
-        );
-      }
-
-      const eventsWithProgress = await Promise.all(
-        fetchedEvents.map(async (event) => {
+      const withProgress = await Promise.all(
+        fetched.map(async (event) => {
           try {
             const items = await getChecklistItems(event.id);
-            const progress = getChecklistProgress(items);
-            return { ...event, progress };
+            return { ...event, progress: getChecklistProgress(items) };
           } catch {
             return { ...event, progress: { checked: 0, total: 0, percentage: 0 } };
           }
         })
       );
 
-      setEvents(eventsWithProgress);
-      setFilteredEvents(eventsWithProgress);
-    } catch (error) {
-      console.error('Error fetching events:', error);
+      setAllEvents(withProgress);
+      // Apply whatever category is active right now
+      applyFilter(withProgress, activeCategoryRef.current, search);
+    } catch (err) {
+      console.error('Error fetching events:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // ── applyFilter: derives filteredEvents from allEvents + category + search ─
+  // Pure function — no side-effects other than calling setFilteredEvents.
+  // This is the single source of truth for what the list shows.
+
+  const applyFilter = (events, category, searchText) => {
+    let result = events;
+
+    // Step 1 — category filter
+    // null / undefined category means "My Events" (show all)
+    if (category && category.id) {
+      result = result.filter(e => e.category === category.id);
+    }
+
+    // Step 2 — search filter on top of category filter
+    if (searchText && searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      result = result.filter(e =>
+        e.name.toLowerCase().includes(q) ||
+        e.category.toLowerCase().includes(q)
+      );
+    }
+
+    setFilteredEvents(result);
+  };
+
+  // ── useFocusEffect: runs whenever the screen is focused OR route params change.
+  // We read the category directly from route.params here instead of from state
+  // so we always get the freshest value from the navigator.
+
   useFocusEffect(
     useCallback(() => {
-      const currentCategory = route.params?.category ?? null;
+      // route.params?.category is set by HomeScreen when navigating from a tile,
+      // and reset to null / undefined by the tab press listener in App.js.
+      const category = route.params?.category ?? null;
+      activeCategoryRef.current = category;
       setSearch('');
-      fetchEvents(currentCategory);
+      fetchAllEvents();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [route.params?.category])
   );
 
+  // ── Search handler: filters the already-fetched allEvents list ─────────────
+
   const handleSearch = (text) => {
     setSearch(text);
-    if (text.trim() === '') {
-      setFilteredEvents(events);
-    } else {
-      const filtered = events.filter((event) =>
-        event.name.toLowerCase().includes(text.toLowerCase()) ||
-        event.category.toLowerCase().includes(text.toLowerCase())
-      );
-      setFilteredEvents(filtered);
-    }
+    applyFilter(allEvents, activeCategoryRef.current, text);
   };
+
+  // ── Delete handler ─────────────────────────────────────────────────────────
 
   const handleDelete = async () => {
     try {
       await deleteAllEventItems(deleteModal.eventId);
       await deleteEvent(deleteModal.eventId);
       setDeleteModal({ visible: false, eventId: null });
-      const currentCategory = route.params?.category ?? null;
-      fetchEvents(currentCategory);
-    } catch (error) {
+      fetchAllEvents();
+    } catch {
       setDeleteModal({ visible: false, eventId: null });
     }
   };
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
   const getCategoryEmoji = (categoryId) => {
-    const emojis = {
-      outdoor: '🏔️',
-      formal: '👔',
-      travel: '🧳',
-      school: '🎒',
-      indoor: '🛋️',
-      more: '🗂️',
-      custom: '✨',
+    const map = {
+      outdoor: '🏔️', formal: '👔', travel: '🧳',
+      school: '🎒', indoor: '🛋️', more: '🗂️', custom: '✨',
     };
-    return emojis[categoryId] || '📋';
+    return map[categoryId] || '📋';
   };
 
   const formatDate = (date) => {
     if (!date) return '';
     return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      month: 'short', day: 'numeric', year: 'numeric',
     });
   };
 
   const currentCategory = route.params?.category ?? null;
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   const renderEvent = ({ item }) => (
     <TouchableOpacity
       style={styles.eventCard}
-      onPress={() => navigation.navigate('ChecklistDetail', { eventId: item.id, eventName: item.name })}
+      onPress={() => navigation.navigate('ChecklistDetail', {
+        eventId: item.id, eventName: item.name,
+      })}
       activeOpacity={0.8}
     >
       <View style={styles.eventLeft}>
-        <Text style={styles.eventEmoji}>{item.emoji || getCategoryEmoji(item.category)}</Text>
+        <Text style={styles.eventEmoji}>
+          {item.emoji || getCategoryEmoji(item.category)}
+        </Text>
         <View style={styles.eventInfo}>
           <Text style={styles.eventName}>{item.name}</Text>
           <Text style={styles.eventDate}>{formatDate(item.date)}</Text>
@@ -129,7 +163,7 @@ export default function EventListScreen({ navigation, route }) {
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${item.progress?.percentage || 0}%` }
+                  { width: `${item.progress?.percentage || 0}%` },
                 ]}
               />
             </View>
@@ -159,7 +193,7 @@ export default function EventListScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete modal */}
       <Modal visible={deleteModal.visible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
@@ -168,10 +202,7 @@ export default function EventListScreen({ navigation, route }) {
             <Text style={styles.modalMessage}>
               Are you sure you want to delete this event and all its items?
             </Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={handleDelete}
-            >
+            <TouchableOpacity style={styles.modalButton} onPress={handleDelete}>
               <Text style={styles.modalButtonText}>Yes, Delete</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -188,8 +219,7 @@ export default function EventListScreen({ navigation, route }) {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>
-            {currentCategory ? currentCategory.label : 'My Events'}{' '}
-            {currentCategory ? currentCategory.icon : '📋'}
+            {currentCategory ? `${currentCategory.label} ${currentCategory.icon}` : 'My Events 📋'}
           </Text>
           <Text style={styles.headerSubtitle}>
             {currentCategory
@@ -199,13 +229,15 @@ export default function EventListScreen({ navigation, route }) {
         </View>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate('CreateEvent', { defaultCategory: currentCategory?.id })}
+          onPress={() => navigation.navigate('CreateEvent', {
+            defaultCategory: currentCategory?.id,
+          })}
         >
           <Ionicons name="add" size={28} color={COLORS.white} />
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
+      {/* Search */}
       <View style={styles.searchWrapper}>
         <Ionicons name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
         <TextInput
@@ -222,7 +254,7 @@ export default function EventListScreen({ navigation, route }) {
         )}
       </View>
 
-      {/* Events List */}
+      {/* List / empty / loading */}
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -235,12 +267,18 @@ export default function EventListScreen({ navigation, route }) {
             {search ? 'No events found' : 'No events yet'}
           </Text>
           <Text style={styles.emptySubtitle}>
-            {search ? 'Try a different search term' : 'Tap + to create your first event'}
+            {search
+              ? 'Try a different search term'
+              : currentCategory
+                ? `No ${currentCategory.label.toLowerCase()} events yet`
+                : 'Tap + to create your first event'}
           </Text>
           {!search && (
             <TouchableOpacity
               style={styles.createButton}
-              onPress={() => navigation.navigate('CreateEvent', { defaultCategory: currentCategory?.id })}
+              onPress={() => navigation.navigate('CreateEvent', {
+                defaultCategory: currentCategory?.id,
+              })}
             >
               <Text style={styles.createButtonText}>Create Event</Text>
             </TouchableOpacity>
@@ -255,10 +293,12 @@ export default function EventListScreen({ navigation, route }) {
           showsVerticalScrollIndicator={false}
         />
       )}
+
     </SafeAreaView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const makeStyles = (COLORS) => StyleSheet.create({
   safeArea: {
@@ -325,10 +365,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
     elevation: 2,
   },
   eventLeft: {
@@ -435,19 +471,9 @@ const makeStyles = (COLORS) => StyleSheet.create({
     maxWidth: 340,
     gap: 12,
   },
-  modalIcon: {
-    fontSize: 48,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  modalMessage: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
+  modalIcon:    { fontSize: 48 },
+  modalTitle:   { fontSize: 22, fontWeight: 'bold', color: COLORS.text },
+  modalMessage: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
   modalButton: {
     backgroundColor: COLORS.error,
     borderRadius: 12,
@@ -456,19 +482,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  modalButtonText: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  modalButtonOutline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  modalButtonOutlineText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '500',
-  },
+  modalButtonText:        { color: COLORS.white, fontSize: 15, fontWeight: 'bold' },
+  modalButtonOutline:     { backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.border },
+  modalButtonOutlineText: { color: COLORS.text, fontSize: 15, fontWeight: '500' },
 });
