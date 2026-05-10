@@ -8,7 +8,7 @@ import {
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { auth } from '../firebase';
-import { COLORS } from '../constants/colors';
+import { useTheme } from '../context/ThemeContext';
 import { CATEGORIES } from '../constants/categories';
 import { createEvent, updateEvent } from '../services/eventService';
 
@@ -44,6 +44,7 @@ const EMOJI_GROUPS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CreateEventScreen({ navigation, route }) {
+  const { colors: COLORS } = useTheme();
   const existingEvent   = route.params?.event          || null;
   const defaultCategory = route.params?.defaultCategory || 'outdoor';
 
@@ -222,6 +223,7 @@ export default function CreateEventScreen({ navigation, route }) {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
+  const styles = makeStyles(COLORS);
   return (
     <SafeAreaView style={styles.safeArea}>
 
@@ -530,7 +532,7 @@ export default function CreateEventScreen({ navigation, route }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,

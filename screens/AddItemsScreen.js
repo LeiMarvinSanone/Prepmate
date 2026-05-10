@@ -6,7 +6,7 @@ import {
   Alert, SafeAreaView, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/colors';
+import { useTheme } from '../context/ThemeContext';
 import { auth } from '../firebase';
 import {
   addChecklistItem, getChecklistItems,
@@ -19,6 +19,7 @@ import { DEFAULT_SUGGESTIONS } from '../constants/defaultSuggestions';
 const MAX_SUGGESTIONS = 8;
 
 export default function AddItemsScreen({ navigation, route }) {
+  const { colors: COLORS } = useTheme();
   const { eventId, eventName, category } = route.params;
 
   const [items,       setItems]       = useState([]);
@@ -178,6 +179,7 @@ export default function AddItemsScreen({ navigation, route }) {
     </View>
   );
 
+  const styles = makeStyles(COLORS);
   return (
     <SafeAreaView style={styles.safeArea}>
 
@@ -282,7 +284,7 @@ export default function AddItemsScreen({ navigation, route }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,

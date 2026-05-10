@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth, GOOGLE_WEB_CLIENT_ID } from '../firebase';
-import { COLORS } from '../constants/colors';
+import { useTheme } from '../context/ThemeContext';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
@@ -15,6 +15,7 @@ import * as Google from 'expo-auth-session/providers/google';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
+  const { colors: COLORS } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -103,6 +104,7 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  const styles = makeStyles(COLORS);
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -249,7 +251,7 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   container: {
     flexGrow: 1,
     backgroundColor: COLORS.white,

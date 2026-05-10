@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { COLORS } from '../constants/colors';
+import { useTheme } from '../context/ThemeContext';
 import {
   getChecklistItems,
   toggleChecklistItem,
@@ -19,6 +19,7 @@ import { getEvent } from '../services/eventService';
 import { CATEGORIES } from '../constants/categories';
 
 export default function ChecklistDetailScreen({ navigation, route }) {
+  const { colors: COLORS } = useTheme();
   const { eventId, eventName } = route.params;
 
   const [event, setEvent] = useState(null);
@@ -257,6 +258,7 @@ export default function ChecklistDetailScreen({ navigation, route }) {
 
   // ─── Main render ──────────────────────────────────────────────────────────
 
+  const styles = makeStyles(COLORS);
   return (
     <SafeAreaView style={styles.safeArea}>
 
@@ -410,7 +412,7 @@ export default function ChecklistDetailScreen({ navigation, route }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,

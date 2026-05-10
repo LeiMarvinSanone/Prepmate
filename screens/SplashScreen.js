@@ -3,10 +3,11 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
-import { COLORS } from '../constants/colors';
+import { useTheme } from '../context/ThemeContext';
 import { createUserDocument } from '../services/userService';
 
 export default function SplashScreen({ navigation }) {
+  const { colors: COLORS } = useTheme();
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -21,6 +22,7 @@ export default function SplashScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
+  const styles = makeStyles(COLORS);
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
@@ -37,7 +39,7 @@ export default function SplashScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
