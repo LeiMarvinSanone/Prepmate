@@ -609,7 +609,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     borderBottomWidth: 1.5,
     borderBottomColor: COLORS.primary,
     paddingVertical: 4,
-    outline: 'none',
   },
   editAction: {
     padding: 4,

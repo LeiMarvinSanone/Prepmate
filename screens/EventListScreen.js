@@ -310,7 +310,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
-    outline: 'none',
   },
   list: {
     paddingHorizontal: 20,

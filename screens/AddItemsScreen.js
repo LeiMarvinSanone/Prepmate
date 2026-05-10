@@ -340,7 +340,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     fontSize: 15,
     backgroundColor: COLORS.background,
     color: COLORS.text,
-    outline: 'none',
   },
   addButton: {
     backgroundColor: COLORS.primary,
