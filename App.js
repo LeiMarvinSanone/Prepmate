@@ -92,6 +92,7 @@ function AppNavigator() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Listen for Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
@@ -99,14 +100,8 @@ function AppNavigator() {
     return unsubscribe;
   }, []);
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <Text style={{ color: colors.text }}>Loading...</Text>
-      </View>
-    );
-  }
-
+  // Always show the NavigationContainer with appropriate stack.
+  // SplashScreen will handle its own loading UI while waiting for auth state.
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -116,6 +111,7 @@ function AppNavigator() {
         }}
       >
         {user ? (
+          // User is logged in — show authenticated stack with tabs
           <>
             <Stack.Screen name="Main"            component={MainTabs} />
             <Stack.Screen name="ChecklistDetail" component={ChecklistDetailScreen} />
@@ -124,6 +120,7 @@ function AppNavigator() {
             <Stack.Screen name="SmartSuggestions" component={SmartSuggestionsScreen} />
           </>
         ) : (
+          // User is NOT logged in — show auth stack (Splash → Login → SignUp)
           <>
             <Stack.Screen name="Splash"  component={SplashScreen} />
             <Stack.Screen name="Login"   component={LoginScreen} />

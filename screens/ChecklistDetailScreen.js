@@ -17,9 +17,11 @@ import {
 } from '../services/checklistService';
 import { getEvent } from '../services/eventService';
 import { CATEGORIES } from '../constants/categories';
+import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
 
 export default function ChecklistDetailScreen({ navigation, route }) {
-  const { colors: COLORS } = useTheme();
+  // Theme hook provides the palette AND dark-mode flag for consistent UI colors
+  const { colors: COLORS, isDark } = useTheme();
   const styles = makeStyles(COLORS);
   const { eventId, eventName } = route.params;
 
@@ -30,6 +32,9 @@ export default function ChecklistDetailScreen({ navigation, route }) {
   const [editingItem, setEditingItem] = useState(null); // { id, name }
   const [deleteModal, setDeleteModal] = useState({ visible: false, itemId: null });
   const [progress, setProgress] = useState({ checked: 0, total: 0, percentage: 0 });
+
+  // Hook to safely close delete modal while clearing focus to prevent aria-hidden warnings
+  const closeDeleteModal = useModalFocus(deleteModal, setDeleteModal);
 
   // ─── Data fetching ────────────────────────────────────────────────────────
 
@@ -162,6 +167,10 @@ export default function ChecklistDetailScreen({ navigation, route }) {
   // ─── Render helpers ───────────────────────────────────────────────────────
 
   const categoryInfo = event ? getCategoryInfo(event.category) : null;
+  // In dark mode, avoid light category backgrounds so event text stays readable
+  const eventCardBackground = isDark ? COLORS.white : categoryInfo?.color;
+  // Use a brighter icon color in dark mode for better contrast
+  const secondaryIconColor = isDark ? COLORS.text : COLORS.textSecondary;
 
   const renderItem = ({ item }) => {
     const isBeingEdited = editingItem?.id === item.id;
@@ -217,7 +226,7 @@ export default function ChecklistDetailScreen({ navigation, route }) {
               onPress={() => handleStartEdit(item)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="pencil" size={16} color={COLORS.textSecondary} />
+              <Ionicons name="pencil" size={16} color={secondaryIconColor} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.itemAction}
@@ -271,12 +280,15 @@ export default function ChecklistDetailScreen({ navigation, route }) {
             <Text style={styles.modalMessage}>
               Remove this item from your checklist?
             </Text>
-            <TouchableOpacity style={styles.modalButton} onPress={handleDeleteItem}>
+            <TouchableOpacity style={styles.modalButton} onPress={() => {
+              clearAccessibilityFocus();
+              handleDeleteItem();
+            }}>
               <Text style={styles.modalButtonText}>Yes, Remove</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modalButton, styles.modalButtonOutline]}
-              onPress={() => setDeleteModal({ visible: false, itemId: null })}
+              onPress={closeDeleteModal}
             >
               <Text style={styles.modalButtonOutlineText}>Cancel</Text>
             </TouchableOpacity>
@@ -324,7 +336,14 @@ export default function ChecklistDetailScreen({ navigation, route }) {
 
       {/* ── Event card ── */}
       {event && categoryInfo && (
-        <View style={[styles.eventCard, { backgroundColor: categoryInfo.color }]}>
+        <View
+          style={[
+            styles.eventCard,
+            { backgroundColor: eventCardBackground },
+            // Dark mode gets a subtle border to separate the card from the background
+            isDark && styles.eventCardDark,
+          ]}
+        >
           <View style={styles.eventCardLeft}>
             <Text style={styles.eventCardIcon}>{event.emoji || categoryInfo.icon}</Text>
             <View style={styles.eventCardInfo}>
@@ -337,10 +356,14 @@ export default function ChecklistDetailScreen({ navigation, route }) {
             </View>
           </View>
           <TouchableOpacity
-            style={styles.editEventBtn}
+            style={[
+              styles.editEventBtn,
+              // Theme-aware button surface so the pencil icon stays visible in dark mode
+              isDark && styles.editEventBtnDark,
+            ]}
             onPress={() => navigation.navigate('CreateEvent', { event })}
           >
-            <Ionicons name="pencil" size={16} color={COLORS.textSecondary} />
+            <Ionicons name="pencil" size={16} color={secondaryIconColor} />
           </TouchableOpacity>
         </View>
       )}
@@ -472,6 +495,11 @@ const makeStyles = (COLORS) => StyleSheet.create({
     padding: 14,
     marginBottom: 16,
   },
+  // Dark mode uses a border instead of a light card background
+  eventCardDark: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   eventCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -498,6 +526,10 @@ const makeStyles = (COLORS) => StyleSheet.create({
     padding: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.6)',
+  },
+  // Theme-based button surface to keep the pencil icon visible in dark mode
+  editEventBtnDark: {
+    backgroundColor: COLORS.border,
   },
 
   // ── Progress ──

@@ -11,6 +11,7 @@ import { auth } from '../firebase';
 import { useTheme } from '../context/ThemeContext';
 import { getUserEvents, deleteEvent } from '../services/eventService';
 import { deleteAllEventItems, getChecklistItems, getChecklistProgress } from '../services/checklistService';
+import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,9 @@ export default function EventListScreen({ navigation, route }) {
   const [search,         setSearch]         = useState('');
   const [loading,        setLoading]        = useState(true);
   const [deleteModal,    setDeleteModal]    = useState({ visible: false, eventId: null });
+
+  // Hook to safely close delete modal while clearing focus to prevent aria-hidden warnings
+  const closeDeleteModal = useModalFocus(deleteModal, setDeleteModal);
 
   // activeCategoryRef lets us read the current category synchronously inside
   // callbacks without stale-closure issues. It mirrors the route param.
@@ -202,12 +206,15 @@ export default function EventListScreen({ navigation, route }) {
             <Text style={styles.modalMessage}>
               Are you sure you want to delete this event and all its items?
             </Text>
-            <TouchableOpacity style={styles.modalButton} onPress={handleDelete}>
+            <TouchableOpacity style={styles.modalButton} onPress={() => {
+              clearAccessibilityFocus();
+              handleDelete();
+            }}>
               <Text style={styles.modalButtonText}>Yes, Delete</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modalButton, styles.modalButtonOutline]}
-              onPress={() => setDeleteModal({ visible: false, eventId: null })}
+              onPress={closeDeleteModal}
             >
               <Text style={styles.modalButtonOutlineText}>Cancel</Text>
             </TouchableOpacity>

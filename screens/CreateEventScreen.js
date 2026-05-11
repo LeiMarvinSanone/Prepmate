@@ -11,6 +11,7 @@ import { auth } from '../firebase';
 import { useTheme } from '../context/ThemeContext';
 import { CATEGORIES } from '../constants/categories';
 import { createEvent, updateEvent } from '../services/eventService';
+import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
 
 // ─── Emoji picker data ────────────────────────────────────────────────────────
 // Grouped so the picker sheet feels organized and scannable
@@ -43,7 +44,8 @@ const EMOJI_GROUPS = [
 
 
 export default function CreateEventScreen({ navigation, route }) {
-  const { colors: COLORS } = useTheme();
+  // Theme hook provides colors and dark-mode flag so we can keep contrast correct
+  const { colors: COLORS, isDark } = useTheme();
   const styles = makeStyles(COLORS);
   const existingEvent   = route.params?.event          || null;
   const defaultCategory = route.params?.defaultCategory || 'outdoor';
@@ -77,6 +79,13 @@ export default function CreateEventScreen({ navigation, route }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [emojiModal,     setEmojiModal]     = useState(false);
+
+  // Hooks to safely close modals while clearing focus to prevent aria-hidden warnings
+  const closeResultModal = useModalFocus(resultModal, setResultModal);
+  const closeEmojiModal = () => {
+    clearAccessibilityFocus();
+    setEmojiModal(false);
+  };
 
   const scrollRef  = useRef(null);
   const isMounted  = useRef(true);
@@ -205,6 +214,12 @@ export default function CreateEventScreen({ navigation, route }) {
 
   const selectableCategories = CATEGORIES.filter(c => c.id !== 'custom' && c.id !== 'more');
   const selectedCategoryInfo  = CATEGORIES.find(c => c.id === category);
+  // In dark mode, use brighter icon colors so they stay visible on dark surfaces
+  const secondaryIconColor = isDark ? COLORS.text : COLORS.textSecondary;
+  // Date/time picker icons use the primary color in dark mode for maximum visibility and emphasis
+  const dateTimeIconColor = isDark ? COLORS.primary : COLORS.textSecondary;
+  // Input row styling adapts to dark mode: lighter border for better container definition
+  const inputRowBorderColor = isDark ? COLORS.text : COLORS.border;
 
   // ─── Web-only date/time input styles ─────────────────────────────────────
 
@@ -239,7 +254,7 @@ export default function CreateEventScreen({ navigation, route }) {
                 </Text>
                 <TouchableOpacity
                   style={styles.modalBtn}
-                  onPress={() => setResultModal({ visible: false })}
+                  onPress={closeResultModal}
                 >
                   <Text style={styles.modalBtnText}>OK</Text>
                 </TouchableOpacity>
@@ -249,12 +264,18 @@ export default function CreateEventScreen({ navigation, route }) {
                 <Text style={styles.modalEmoji}>🎉</Text>
                 <Text style={styles.modalTitle}>Event Created!</Text>
                 <Text style={styles.modalMsg}>What would you like to do next?</Text>
-                <TouchableOpacity style={styles.modalBtn} onPress={() => handleGoAddItems(resultModal.eventId)}>
+                <TouchableOpacity style={styles.modalBtn} onPress={() => {
+                  clearAccessibilityFocus();
+                  handleGoAddItems(resultModal.eventId);
+                }}>
                   <Text style={styles.modalBtnText}>➕  Add Items Now</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalBtn, styles.modalBtnOutline]}
-                  onPress={handleAfterSave}
+                  onPress={() => {
+                    clearAccessibilityFocus();
+                    handleAfterSave();
+                  }}
                 >
                   <Text style={styles.modalBtnOutlineText}>Done for Now</Text>
                 </TouchableOpacity>
@@ -272,7 +293,7 @@ export default function CreateEventScreen({ navigation, route }) {
             <View style={styles.sheetHandle} />
             <View style={styles.emojiSheetHeader}>
               <Text style={styles.emojiSheetTitle}>Choose an icon</Text>
-              <TouchableOpacity onPress={() => setEmojiModal(false)}>
+              <TouchableOpacity onPress={closeEmojiModal}>
                 <Ionicons name="close" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -376,7 +397,7 @@ export default function CreateEventScreen({ navigation, route }) {
           {/* Event name */}
           <Text style={styles.label}>Event Name</Text>
           <View style={[styles.inputRow, errors.name && styles.inputRowError]}>
-            <MaterialIcons name="event" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <MaterialIcons name="event" size={20} color={secondaryIconColor} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="e.g. Beach Trip"
@@ -404,12 +425,20 @@ export default function CreateEventScreen({ navigation, route }) {
           <View style={styles.categoryGrid}>
             {selectableCategories.map((cat) => {
               const active = category === cat.id;
+              // Dark mode uses a theme surface for readability; category color moves to the border
+              const chipBackground = isDark ? COLORS.white : cat.color;
+              const chipBorderColor = isDark ? cat.color : 'transparent';
               return (
                 <TouchableOpacity
                   key={cat.id}
                   style={[
                     styles.categoryChip,
-                    { backgroundColor: active ? COLORS.primary : cat.color },
+                    {
+                      backgroundColor: active ? COLORS.primary : chipBackground,
+                      // Keep a clear outline in dark mode so chips stand out
+                      borderWidth: isDark ? 1 : 0,
+                      borderColor: active ? COLORS.primary : chipBorderColor,
+                    },
                     active && styles.categoryChipActive,
                   ]}
                   onPress={() => handleCategoryChange(cat.id)}
@@ -428,7 +457,8 @@ export default function CreateEventScreen({ navigation, route }) {
           <Text style={styles.label}>Date</Text>
           {Platform.OS === 'web' ? (
             <label style={webRowStyle}>
-              <Ionicons name="calendar" size={20} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
+              {/* Calendar icon uses primary color in dark mode for high contrast and visibility */}
+              <Ionicons name="calendar" size={22} color={dateTimeIconColor} style={{ marginRight: 10, flexShrink: 0 }} />
               <input
                 type="date"
                 value={formatSaveDate(date)}
@@ -442,10 +472,12 @@ export default function CreateEventScreen({ navigation, route }) {
               />
             </label>
           ) : (
-            <TouchableOpacity style={styles.inputRow} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
-              <Ionicons name="calendar" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <TouchableOpacity style={[styles.inputRow, { borderColor: inputRowBorderColor }]} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+              {/* Calendar icon is bright green in dark mode so it's clearly tappable */}
+              <Ionicons name="calendar" size={22} color={dateTimeIconColor} style={styles.inputIcon} />
               <Text style={styles.pickerText}>{formatDisplayDate(date)}</Text>
-              <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
+              {/* Chevron icon uses bright color in dark mode so the button looks clickable */}
+              <Ionicons name="chevron-down" size={20} color={dateTimeIconColor} />
             </TouchableOpacity>
           )}
 
@@ -453,7 +485,8 @@ export default function CreateEventScreen({ navigation, route }) {
           <Text style={styles.label}>Time</Text>
           {Platform.OS === 'web' ? (
             <label style={webRowStyle}>
-              <Ionicons name="time" size={20} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
+              {/* Time icon uses primary color in dark mode for high contrast and visibility */}
+              <Ionicons name="time" size={22} color={dateTimeIconColor} style={{ marginRight: 10, flexShrink: 0 }} />
               <input
                 type="time"
                 value={`${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}`}
@@ -470,10 +503,12 @@ export default function CreateEventScreen({ navigation, route }) {
               />
             </label>
           ) : (
-            <TouchableOpacity style={styles.inputRow} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
-              <Ionicons name="time" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <TouchableOpacity style={[styles.inputRow, { borderColor: inputRowBorderColor }]} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
+              {/* Time icon is bright green in dark mode so it's clearly tappable */}
+              <Ionicons name="time" size={22} color={dateTimeIconColor} style={styles.inputIcon} />
               <Text style={styles.pickerText}>{formatDisplayTime(time)}</Text>
-              <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
+              {/* Chevron icon uses bright color in dark mode so the button looks clickable */}
+              <Ionicons name="chevron-down" size={20} color={dateTimeIconColor} />
             </TouchableOpacity>
           )}
 

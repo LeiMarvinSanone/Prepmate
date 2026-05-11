@@ -11,6 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -24,18 +25,21 @@ export default function LoginScreen({ navigation }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [modal, setModal] = useState({ visible: false, title: '', message: '', icon: '' });
+  
+  // Hook to safely close modal while clearing focus to prevent aria-hidden warnings
+  const closeModal = useModalFocus(modal, setModal);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
   });
 
-  React.useEffect(() => {
+   React.useEffect(() => {
     if (response?.type === 'success') {
       const { id_token } = response.params;
       const credential = GoogleAuthProvider.credential(id_token);
       setGoogleLoading(true);
       signInWithCredential(auth, credential)
-        .then(() => navigation.replace('Main'))
+        // Remove navigation.replace('Main') — onAuthStateChanged in App.js handles this
         .catch(() => setModal({
           visible: true,
           icon: '❌',
@@ -72,7 +76,7 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigation.replace('Main');
+      // Remove navigation.replace('Main') — onAuthStateChanged in App.js handles this automatically
     } catch (error) {
       if (
         error.code === 'auth/user-not-found' ||
@@ -119,7 +123,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.modalMessage}>{modal.message}</Text>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => setModal({ ...modal, visible: false })}
+              onPress={closeModal}
             >
               <Text style={styles.modalButtonText}>OK</Text>
             </TouchableOpacity>
@@ -127,6 +131,7 @@ export default function LoginScreen({ navigation }) {
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonOutline]}
                 onPress={() => {
+                  clearAccessibilityFocus();
                   setModal({ ...modal, visible: false });
                   navigation.navigate('SignUp');
                 }}
@@ -299,7 +304,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
     outlineWidth: 0,
-    outline: 'none',
     borderWidth: 0,
   },
   errorRow: {

@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Modal, TextInput, ActivityIndicator,
-  SafeAreaView, Alert, Switch,
+  SafeAreaView, Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,6 +12,7 @@ import { auth } from '../firebase';
 import { useTheme } from '../context/ThemeContext';
 import { getUserEvents } from '../services/eventService';
 import { getAllItemHistory } from '../services/historyService';
+import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
 
 // ── Exported so HomeScreen can build the same avatar ──────────────────────────
 export const getInitials = (displayName, email) => {
@@ -41,6 +42,12 @@ export default function ProfileScreen({ navigation }) {
   const [savingName,   setSavingName]   = useState(false);
   const [aboutModal,   setAboutModal]   = useState(false);
   const [helpModal,    setHelpModal]    = useState(false);
+  // State for logout confirmation modal (replaces Alert.alert)
+  const [logoutModal,  setLogoutModal]  = useState(false);
+  const [loggingOut,   setLoggingOut]   = useState(false);
+
+  // Hook to safely close logout modal while clearing focus to prevent aria-hidden warnings
+  const closeLogoutModal = useModalFocus(logoutModal, setLogoutModal);
 
   useFocusEffect(useCallback(() => {
     setDisplayName(auth.currentUser?.displayName || '');
@@ -63,32 +70,36 @@ export default function ProfileScreen({ navigation }) {
     finally { setStatsLoading(false); }
   };
 
-  // ── Logout: signOut first, then navigate to Login directly.
-  // Navigating to Splash relies on onAuthStateChanged firing fast enough,
-  // which is not guaranteed on web. Direct Login navigation is reliable.
-  const handleLogout = () => {
+  // ── Logout: Show confirmation modal first, then signOut if confirmed ──────────────
+  // Opens the logout modal instead of using Alert.alert
+  const handleLogoutPress = () => {
     console.log('Logout pressed');
+    setLogoutModal(true);
+  };
 
-    Alert.alert('Log Out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log Out', style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOut(auth);
-            // Reset the entire nav stack to Login so back button is gone
-            // ProfileScreen is inside MainTabs (tab navigator).
-            // navigation.reset() only resets the tab stack — not the root stack.
-            // getParent() climbs to the root Stack navigator where Login lives.
-            const rootNav = navigation.getParent() || navigation;
-            rootNav.reset({ index: 0, routes: [{ name: 'Login' }] });
-          } catch (err) {
-            console.error('Logout error:', err);
-            Alert.alert('Error', 'Could not log out. Please try again.');
-          }
-        },
-      },
-    ]);
+  // ── Confirm logout: signOut then let Firebase auth state trigger navigation ──────────
+  // Only called when user confirms in the logout modal
+  // IMPORTANT: Do NOT manually navigate after signOut!
+  // Firebase onAuthStateChanged in App.js will detect user === null
+  // and automatically switch to the auth stack (Splash → Login)
+  const handleLogoutConfirm = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut(auth);
+      // Clear focus to prevent accessibility warnings
+      clearAccessibilityFocus();
+      // STOP HERE - Let Firebase auth state change trigger navigation
+      // The onAuthStateChanged listener in App.js will:
+      // 1. Detect user is now null
+      // 2. Re-render AppNavigator
+      // 3. Show auth stack (Splash → Login)
+      // NO manual navigation needed!
+    } catch (err) {
+      console.error('Logout error:', err);
+      // If logout fails, close modal and let user try again
+      setLogoutModal(false);
+      setLoggingOut(false);
+    }
   };
 
   const openEdit = () => { setNewName(displayName); setNameError(''); setEditModal(true); };
@@ -129,6 +140,35 @@ export default function ProfileScreen({ navigation }) {
               </TouchableOpacity>
               <TouchableOpacity style={[s.mBtn, { backgroundColor: C.primary }]} onPress={handleSaveName} disabled={savingName}>
                 {savingName ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.mBtnTxt}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Logout confirmation modal — replaces Alert.alert */}
+      <Modal visible={logoutModal} transparent animationType="fade">
+        <View style={s.overlay}>
+          <View style={[s.mBox, { backgroundColor: C.white }]}>
+            <Text style={{ fontSize: 48 }}>👋</Text>
+            <Text style={[s.mTitle, { color: C.text }]}>Log Out</Text>
+            <Text style={{ fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22 }}>
+              Are you sure you want to log out?
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 8 }}>
+              <TouchableOpacity 
+                style={[s.mBtnOut, { borderColor: C.border }]} 
+                onPress={closeLogoutModal}
+                disabled={loggingOut}
+              >
+                <Text style={{ color: C.text, fontWeight: '500', fontSize: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[s.mBtn, { backgroundColor: C.error }]} 
+                onPress={handleLogoutConfirm}
+                disabled={loggingOut}
+              >
+                {loggingOut ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.mBtnTxt}>Log Out</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -270,11 +310,11 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Logout — no disabled prop, always tappable */}
+        {/* Logout — always tappable, opens confirmation modal */}
         <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
           <TouchableOpacity
             style={[s.logoutBtn, { backgroundColor: C.white, borderColor: C.error + '55' }]}
-            onPress={handleLogout}
+            onPress={handleLogoutPress}
             activeOpacity={0.7}
           >
             <Ionicons name="log-out-outline" size={20} color={C.error} />

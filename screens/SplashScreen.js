@@ -9,14 +9,24 @@ import { createUserDocument } from '../services/userService';
 export default function SplashScreen({ navigation }) {
   const { colors: COLORS } = useTheme();
   const styles = makeStyles(COLORS);
+  
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // User is logged in → go to Main
-        navigation.replace('Main');
-      } else {
-        // No user → go to Login
-        navigation.replace('Login');
+    // ── Listen for auth state changes ──────────────────────────────────────
+    // This ensures the user document exists in Firestore when they log in.
+    // App.js (AppNavigator) is the MAIN auth listener that drives navigation.
+    // This listener is just here to initialize user data in database.
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      try {
+        if (user) {
+          // User is logged in — create their document in Firestore if it doesn't exist
+          // This ensures their profile data is initialized
+          await createUserDocument(user.uid, { email: user.email });
+          // App.js will automatically switch to authenticated navigator (MainTabs)
+        }
+        // No user? App.js will automatically switch to auth stack (Splash → Login → SignUp)
+      } catch (error) {
+        console.error('SplashScreen error:', error);
+        // Continue anyway - let App.js handle navigation
       }
     });
 
