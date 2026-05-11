@@ -348,7 +348,7 @@ const s = StyleSheet.create({
   overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   mBox:          { borderRadius: 20, padding: 24, width: '100%', maxWidth: 380, alignItems: 'center', gap: 12 },
   mTitle:        { fontSize: 19, fontWeight: 'bold', textAlign: 'center' },
-  mInput:        { width: '100%', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  mInput:        { width: '100%', borderWidth: 0, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   mBtn:          { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
   mBtnTxt:       { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   mBtnOut:       { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },

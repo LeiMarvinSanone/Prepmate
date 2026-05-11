@@ -10,7 +10,6 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
-import SplashScreen           from './screens/SplashScreen';
 import LoginScreen            from './screens/LoginScreen';
 import SignUpScreen            from './screens/SignUpScreen';
 import HomeScreen             from './screens/HomeScreen';
@@ -93,7 +92,22 @@ function AppNavigator() {
 
   useEffect(() => {
     // Listen for Firebase auth state changes
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    // When user logs in/out, update state to trigger navigation stack switch
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        // User logged in — initialize their Firestore document asynchronously
+        // We use .then() instead of await so navigation updates immediately
+        // The document creation happens in the background
+        try {
+          const { createUserDocument } = await import('./services/userService');
+          createUserDocument(u).catch(err => 
+            console.error('Failed to create user document:', err)
+          );
+        } catch (err) {
+          console.error('Failed to import userService:', err);
+        }
+      }
+      // Always update user state immediately (don't wait for Firestore)
       setUser(u);
       setLoading(false);
     });
@@ -101,7 +115,7 @@ function AppNavigator() {
   }, []);
 
   // Always show the NavigationContainer with appropriate stack.
-  // SplashScreen will handle its own loading UI while waiting for auth state.
+  // Navigation stack updates based on auth state (user logged in or not)
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -120,9 +134,8 @@ function AppNavigator() {
             <Stack.Screen name="SmartSuggestions" component={SmartSuggestionsScreen} />
           </>
         ) : (
-          // User is NOT logged in — show auth stack (Splash → Login → SignUp)
+          // User is NOT logged in — show auth stack (skip Splash, go directly to Login)
           <>
-            <Stack.Screen name="Splash"  component={SplashScreen} />
             <Stack.Screen name="Login"   component={LoginScreen} />
             <Stack.Screen name="SignUp"  component={SignUpScreen} />
           </>

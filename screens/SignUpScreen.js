@@ -349,12 +349,15 @@ const makeStyles = (COLORS) => StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: 0,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: COLORS.background,
+  },
+  // Remove border when input is focused
+  inputWrapperFocused: {
+    borderWidth: 0,
   },
   inputIcon: {
     marginRight: 10,

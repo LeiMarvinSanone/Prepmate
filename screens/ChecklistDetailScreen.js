@@ -638,8 +638,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
-    borderBottomWidth: 1.5,
-    borderBottomColor: COLORS.primary,
+    borderBottomWidth: 0,
     paddingVertical: 4,
   },
   editAction: {
