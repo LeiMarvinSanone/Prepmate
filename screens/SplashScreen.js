@@ -1,6 +1,6 @@
 // screens/SplashScreen.js
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 // ── Pure UI component - Just displays the splash screen ──────────────────
@@ -12,7 +12,11 @@ export default function SplashScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <Text style={styles.logo}>🎒</Text>
+        <Image
+          source={require('../assets/prepmateicon1.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.appName}>PrepMate</Text>
         <Text style={styles.tagline}>Smart checklists for every event.</Text>
       </View>
@@ -37,10 +41,11 @@ const makeStyles = (COLORS) => StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 40,
+    gap: 8,
   },
   logo: {
-    fontSize: 80,
-    marginBottom: 16,
+    width: 260,
+    height: 260,
   },
   appName: {
     fontSize: 36,

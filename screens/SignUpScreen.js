@@ -160,12 +160,6 @@ export default function SignUpScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          </TouchableOpacity>
           <Text style={styles.title}>Create Account ✨</Text>
           <Text style={styles.subtitle}>Sign up to get started</Text>
         </View>

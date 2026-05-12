@@ -13,10 +13,11 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
 
+
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
-  const { colors: COLORS } = useTheme();
+  const { colors: COLORS, theme } = useTheme();
   const styles = makeStyles(COLORS);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -149,7 +150,11 @@ export default function LoginScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.logo}>🎒</Text>
+          <Image
+            source={require('../assets/prepmateicon1.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Welcome Back! 👋</Text>
           <Text style={styles.subtitle}>Log in to continue to your account</Text>
         </View>
@@ -268,10 +273,11 @@ const makeStyles = (COLORS) => StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
+    gap: 12,
   },
   logo: {
-    fontSize: 60,
-    marginBottom: 12,
+    width: 260,
+    height: 260,
   },
   title: {
     fontSize: 26,

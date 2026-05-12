@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Modal, TextInput, ActivityIndicator,
-  SafeAreaView, Switch,
+  SafeAreaView, Switch, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,7 +30,7 @@ export const getAvatarColor = (initials) =>
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ProfileScreen({ navigation }) {
-  const { colors: C, isDark, toggleTheme } = useTheme();
+  const { colors: C, isDark, toggleTheme, theme } = useTheme();
   const user = auth.currentUser;
 
   const [displayName,  setDisplayName]  = useState(user?.displayName || '');
@@ -179,7 +179,11 @@ export default function ProfileScreen({ navigation }) {
       <Modal visible={aboutModal} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={[s.mBox, { backgroundColor: C.white }]}>
-            <Text style={{ fontSize: 48 }}>🎒</Text>
+            <Image
+              source={require('../assets/prepmateicon1.png')}
+              style={s.aboutLogo}
+              resizeMode="contain"
+            />
             <Text style={[s.mTitle, { color: C.text }]}>PrepMate</Text>
             <Text style={{ fontSize: 13, color: C.textSecondary }}>Version 1.0.0</Text>
             <Text style={{ fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 }}>
@@ -347,6 +351,7 @@ const s = StyleSheet.create({
   logoutBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, paddingVertical: 15, borderWidth: 1 },
   overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   mBox:          { borderRadius: 20, padding: 24, width: '100%', maxWidth: 380, alignItems: 'center', gap: 12 },
+  aboutLogo:     { width: 200, height: 200, marginBottom: 8 },
   mTitle:        { fontSize: 19, fontWeight: 'bold', textAlign: 'center' },
   mInput:        { width: '100%', borderWidth: 0, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   mBtn:          { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },

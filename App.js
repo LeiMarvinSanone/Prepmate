@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import LoginScreen            from './screens/LoginScreen';
 import SignUpScreen            from './screens/SignUpScreen';
+import SplashScreen           from './screens/SplashScreen';
 import HomeScreen             from './screens/HomeScreen';
 import EventListScreen        from './screens/EventListScreen';
 import CreateEventScreen      from './screens/CreateEventScreen';
@@ -114,8 +115,6 @@ function AppNavigator() {
     return unsubscribe;
   }, []);
 
-  // Always show the NavigationContainer with appropriate stack.
-  // Navigation stack updates based on auth state (user logged in or not)
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -124,7 +123,10 @@ function AppNavigator() {
           cardStyle: { backgroundColor: colors.background },
         }}
       >
-        {user ? (
+        {loading ? (
+          // Show splash screen while checking auth state
+          <Stack.Screen name="Splash" component={SplashScreen} />
+        ) : user ? (
           // User is logged in — show authenticated stack with tabs
           <>
             <Stack.Screen name="Main"            component={MainTabs} />
@@ -134,7 +136,7 @@ function AppNavigator() {
             <Stack.Screen name="SmartSuggestions" component={SmartSuggestionsScreen} />
           </>
         ) : (
-          // User is NOT logged in — show auth stack (skip Splash, go directly to Login)
+          // User is NOT logged in — show auth stack
           <>
             <Stack.Screen name="Login"   component={LoginScreen} />
             <Stack.Screen name="SignUp"  component={SignUpScreen} />
