@@ -41,15 +41,18 @@ export default function ChecklistDetailScreen({ navigation, route }) {
   const fetchData = async () => {
     setLoading(true);
     try {
+      console.log('Fetching checklist for eventId:', eventId);
       const [fetchedEvent, fetchedItems] = await Promise.all([
         getEvent(eventId),
         getChecklistItems(eventId),
       ]);
+      console.log('Fetched checklist items count:', Array.isArray(fetchedItems) ? fetchedItems.length : 0);
       setEvent(fetchedEvent);
       setItems(fetchedItems);
       setProgress(getChecklistProgress(fetchedItems));
     } catch (error) {
       console.error('Error fetching checklist:', error);
+      Alert.alert('Error', error?.message || 'Failed to load checklist items.');
     } finally {
       setLoading(false);
     }

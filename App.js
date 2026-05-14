@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged } from 'firebase/auth';
+import * as Notifications from 'expo-notifications';
 
 import { auth } from './firebase';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -20,18 +21,18 @@ import AddItemsScreen         from './screens/AddItemsScreen';
 import ChecklistDetailScreen  from './screens/ChecklistDetailScreen';
 import SmartSuggestionsScreen from './screens/SmartSuggestionsScreen';
 import ProfileScreen          from './screens/ProfileScreen';
+import RemindersScreen        from './screens/RemindersScreen';
 
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
 
-function RemindersPlaceholder() {
-  const { colors } = useTheme();
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-      <Text style={{ color: colors.text }}>Reminders Screen</Text>
-    </View>
-  );
-}
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 function MainTabs() {
   const { colors } = useTheme();
@@ -80,7 +81,7 @@ function MainTabs() {
         })}
       />
 
-      <Tab.Screen name="Reminders" component={RemindersPlaceholder} />
+      <Tab.Screen name="Reminders" component={RemindersScreen} />
       <Tab.Screen name="Profile"   component={ProfileScreen} />
     </Tab.Navigator>
   );

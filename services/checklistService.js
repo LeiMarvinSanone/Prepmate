@@ -4,7 +4,7 @@ import {
   updateDoc, deleteDoc, query,
   where, orderBy, serverTimestamp, writeBatch
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 
 const ITEMS_COLLECTION = 'checklistItems';
 
@@ -22,13 +22,37 @@ export const addChecklistItem = async (userId, eventId, itemName) => {
 
 // Get all items for an event
 export const getChecklistItems = async (eventId) => {
-  const q = query(
-    collection(db, ITEMS_COLLECTION),
-    where('eventId', '==', eventId),
-    orderBy('createdAt', 'asc')
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  try {
+    // Scope queries to the signed-in user so Firestore security rules
+    // that require user ownership are satisfied and queries don't fail
+    // with "Missing or insufficient permissions".
+    const uid = auth?.currentUser?.uid || null;
+    const baseFilters = [where('eventId', '==', eventId)];
+    if (uid) baseFilters.push(where('userId', '==', uid));
+
+    const q = query(
+      collection(db, ITEMS_COLLECTION),
+      ...baseFilters,
+      orderBy('createdAt', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    // Some Firestore setups can reject composite queries or ordering if
+    // indexes are missing or documents lack the ordered field. Fall back
+    // to a simpler query without ordering so the UI still shows items.
+    console.warn('Ordered checklist query failed, retrying without order:', err);
+    const uid = auth?.currentUser?.uid || null;
+    const baseFilters = [where('eventId', '==', eventId)];
+    if (uid) baseFilters.push(where('userId', '==', uid));
+
+    const q2 = query(
+      collection(db, ITEMS_COLLECTION),
+      ...baseFilters
+    );
+    const snapshot2 = await getDocs(q2);
+    return snapshot2.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  }
 };
 
 // Toggle item checked status

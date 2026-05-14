@@ -155,7 +155,7 @@ export default function LoginScreen({ navigation }) {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.title}>Welcome Back! 👋</Text>
+          <Text style={styles.title}>Welcome to Prepmate!</Text>
           <Text style={styles.subtitle}>Log in to continue to your account</Text>
         </View>
 
