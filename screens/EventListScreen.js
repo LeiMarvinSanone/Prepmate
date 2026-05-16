@@ -345,8 +345,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     marginHorizontal: 20,
     marginBottom: 16,
   },
@@ -357,6 +355,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
+    outlineStyle: 'none',
   },
   list: {
     paddingHorizontal: 20,

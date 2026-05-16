@@ -298,6 +298,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 0,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -310,6 +311,11 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
+    outlineStyle: 'none',
+  },
+   // Remove border when input is focused
+  inputWrapperFocused: {
+    borderWidth: 0,
   },
   errorRow: {
     flexDirection: 'row',

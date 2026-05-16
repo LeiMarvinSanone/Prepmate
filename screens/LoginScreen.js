@@ -260,8 +260,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
-    outlineWidth: 0,
-    borderWidth: 0,
+    outlineStyle: 'none',
   },
   errorRow: {
     flexDirection: 'row',

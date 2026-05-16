@@ -668,6 +668,7 @@ const makeStyles = (COLORS) => StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
+    outlineStyle: 'none',
     color: COLORS.text,
   },
   pickerText: {
