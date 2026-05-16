@@ -208,7 +208,7 @@ export default function ProfileScreen({ navigation }) {
             {[
               ['How do I create an event?', 'Tap the + button on My Events or the Home screen.'],
               ['How do smart suggestions work?', 'PrepMate tracks items you add and suggests them based on past usage.'],
-              ['Can I reuse a checklist?', 'Yes — open any event, tap Edit, then use the refresh button to uncheck all items.'],
+              ['Can I reuse a checklist?', 'Yes — open any event, tap Edit or just simply tap refresh button to uncheck all items.'],
               ['How do I delete an event?', 'Swipe left on any event in My Events, or tap the ⋯ menu.'],
             ].map(([q, a]) => (
               <View key={q} style={{ width: '100%', gap: 3 }}>
