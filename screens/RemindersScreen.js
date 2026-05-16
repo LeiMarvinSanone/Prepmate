@@ -272,15 +272,43 @@ export default function RemindersScreen({ navigation }) {
       hour: '2-digit', minute: '2-digit', hour12: true,
     });
 
-  // Minimum datetime-local value for the web <input> (must be yyyy-MM-ddTHH:mm format)
+  // ── Date/time helpers (timezone-safe) ─────────────────────────────────────
+  //
+  // ROOT CAUSE OF DISPLAY BUG:
+  //   toISOString() always returns UTC. If the user is in UTC+8 and picks
+  //   10:00 PM local time, toISOString() produces "14:00Z" — so the web
+  //   <input value> shows 2:00 PM instead of 10:00 PM.
+  //
+  // FIX: toLocalDateTimeString() pads date parts using LOCAL time components
+  // (getFullYear, getMonth, getDate, getHours, getMinutes) — no UTC conversion.
+
+  const toLocalDateTimeString = (d) => {
+    // Build yyyy-MM-ddTHH:mm using LOCAL time fields, not UTC fields
+    const year   = d.getFullYear();
+    const month  = String(d.getMonth() + 1).padStart(2, '0'); // getMonth is 0-based
+    const day    = String(d.getDate()).padStart(2, '0');
+    const hours  = String(d.getHours()).padStart(2, '0');
+    const mins   = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${mins}`;
+  };
+
+  // Minimum datetime-local value for the web <input> — 1 minute from now, in LOCAL time
   const getMinDateTimeLocal = () => {
     const d = new Date();
     d.setMinutes(d.getMinutes() + 1);
-    return d.toISOString().slice(0, 16);
+    return toLocalDateTimeString(d); // use local, not toISOString (which is UTC)
   };
 
-  // Convert a datetime-local string ("2025-06-01T09:00") to a Date object
-  const parseDateTimeLocal = (value) => new Date(value);
+  // Parse a datetime-local string ("2025-06-01T22:00") into a local Date object.
+  // new Date("2025-06-01T22:00") is ambiguous — some browsers treat it as UTC.
+  // Splitting and using Date constructor with numeric args is always local time.
+  const parseDateTimeLocal = (value) => {
+    const [datePart, timePart] = value.split('T');
+    const [year, month, day]   = datePart.split('-').map(Number);
+    const [hours, minutes]     = timePart.split(':').map(Number);
+    // Date(year, monthIndex, day, hours, minutes) — always local time
+    return new Date(year, month - 1, day, hours, minutes);
+  };
 
   // ── Render a single reminder card ─────────────────────────────────────────
 
@@ -443,7 +471,7 @@ export default function RemindersScreen({ navigation }) {
                   <input
                     type="datetime-local"
                     min={getMinDateTimeLocal()}
-                    value={reminderDate.toISOString().slice(0, 16)}
+                    value={toLocalDateTimeString(reminderDate)}
                     onChange={(e) => {
                       if (e.target.value) {
                         setReminderDate(parseDateTimeLocal(e.target.value));
@@ -462,30 +490,70 @@ export default function RemindersScreen({ navigation }) {
                   />
                 </View>
               ) : (
-                // Native (Android / iOS): use a button that opens DateTimePicker
+                // Native (Android / iOS): two-step picker — date first, then time.
+                //
+                // WHY TWO PICKERS INSTEAD OF mode="datetime":
+                //   On Android, mode="datetime" fires onChange twice (date step,
+                //   then time step). The old code called setShowPicker(false) on
+                //   the FIRST fire, closing the picker before the time step appeared.
+                //   Result: user had to tap twice to set date, and time was never
+                //   updated — it kept the initial value.
+                //
+                //   The fix: use two separate pickers chained together.
+                //   Step 1 (showPicker="date")  → user picks date → store it,
+                //                                  immediately open time picker.
+                //   Step 2 (showPicker="time")  → user picks time → merge with
+                //                                  stored date → update state once.
+                //   This gives exactly one reliable state update with the full
+                //   date+time the user selected.
                 <>
                   <TouchableOpacity
                     style={styles.dateRow}
-                    onPress={() => setShowPicker(true)}
+                    onPress={() => setShowPicker('date')}
                     activeOpacity={0.8}
                   >
-                    {/* Calendar icon — uses theme secondary text color */}
                     <Ionicons name="calendar" size={20} color={COLORS.textSecondary} />
                     <Text style={styles.dateText}>{formatPickerDate(reminderDate)}</Text>
-                    {/* Chevron icon indicates this is tappable */}
                     <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
                   </TouchableOpacity>
 
-                  {/* Native DateTimePicker — only shown when user taps the row */}
-                  {showPicker && (
+                  {/* Step 1: Date picker */}
+                  {showPicker === 'date' && (
                     <DateTimePicker
                       value={reminderDate}
-                      mode="datetime"
+                      mode="date"
                       display="default"
                       minimumDate={new Date()}
                       onChange={(event, selectedDate) => {
-                        setShowPicker(false);
-                        if (selectedDate) setReminderDate(selectedDate);
+                        // Dismiss on cancel (selectedDate is undefined)
+                        if (!selectedDate) { setShowPicker(false); return; }
+                        // Merge the chosen date into the current reminderDate,
+                        // keeping the existing time fields intact
+                        const merged = new Date(reminderDate);
+                        merged.setFullYear(selectedDate.getFullYear());
+                        merged.setMonth(selectedDate.getMonth());
+                        merged.setDate(selectedDate.getDate());
+                        setReminderDate(merged);       // update display immediately
+                        setShowPicker('time');          // open time picker next
+                      }}
+                    />
+                  )}
+
+                  {/* Step 2: Time picker — opens automatically after date is chosen */}
+                  {showPicker === 'time' && (
+                    <DateTimePicker
+                      value={reminderDate}
+                      mode="time"
+                      display="default"
+                      onChange={(event, selectedTime) => {
+                        setShowPicker(false);           // close after time is chosen
+                        if (!selectedTime) return;      // user cancelled
+                        // Merge chosen time into the date we already have
+                        const merged = new Date(reminderDate);
+                        merged.setHours(selectedTime.getHours());
+                        merged.setMinutes(selectedTime.getMinutes());
+                        merged.setSeconds(0);
+                        setReminderDate(merged);        // final state update
                       }}
                     />
                   )}

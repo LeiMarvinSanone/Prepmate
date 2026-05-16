@@ -5,16 +5,13 @@ import {
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
   Platform, ScrollView, Image, Modal
 } from 'react-native';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { auth, GOOGLE_WEB_CLIENT_ID } from '../firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
 import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
 
 
-WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
   const { colors: COLORS, theme } = useTheme();
@@ -23,33 +20,11 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [modal, setModal] = useState({ visible: false, title: '', message: '', icon: '' });
   
   // Hook to safely close modal while clearing focus to prevent aria-hidden warnings
   const closeModal = useModalFocus(modal, setModal);
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-  });
-
-   React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      const credential = GoogleAuthProvider.credential(id_token);
-      setGoogleLoading(true);
-      signInWithCredential(auth, credential)
-        // Remove navigation.replace('Main') — onAuthStateChanged in App.js handles this
-        .catch(() => setModal({
-          visible: true,
-          icon: '❌',
-          title: 'Google Sign-In Failed',
-          message: 'Something went wrong. Please try again.',
-        }))
-        .finally(() => setGoogleLoading(false));
-    }
-  }, [response]);
 
   const validate = () => {
     let valid = true;
@@ -221,32 +196,6 @@ export default function LoginScreen({ navigation }) {
             )}
           </TouchableOpacity>
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google Sign In Button */}
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={() => promptAsync()}
-            disabled={!request || googleLoading}
-          >
-            {googleLoading ? (
-              <ActivityIndicator color={COLORS.text} />
-            ) : (
-              <>
-                <Image
-                  source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
-                  style={styles.googleIcon}
-                />
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
           {/* Sign Up Link */}
           <View style={styles.signUpRow}>
             <Text style={styles.signUpText}>Don't have an account? </Text>
@@ -336,42 +285,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginVertical: 4,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  dividerText: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingVertical: 13,
-    gap: 10,
-    backgroundColor: COLORS.white,
-  },
-  googleIcon: {
-    width: 22,
-    height: 22,
-    resizeMode: 'contain',
-  },
-  googleButtonText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '500',
   },
   signUpRow: {
     flexDirection: 'row',

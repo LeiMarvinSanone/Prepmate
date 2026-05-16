@@ -16,4 +16,3 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const GOOGLE_WEB_CLIENT_ID = '590076820610-kju8ei59pdurt1qlgab4slcpof1m4dhn.apps.googleusercontent.com';

@@ -3,9 +3,9 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, ScrollView, Image, Modal
+  Platform, ScrollView, Modal
 } from 'react-native';
-import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, GOOGLE_WEB_CLIENT_ID } from '../firebase';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
