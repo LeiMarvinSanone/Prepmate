@@ -25,7 +25,7 @@ export const CATEGORIES = [
     id: 'school', 
     label: 'School', 
     subtitle: 'Classes, Exams, Activities', 
-    icon: '🎒', 
+    icon: '📖', 
     color: '#FCE4EC' 
   },
   { 

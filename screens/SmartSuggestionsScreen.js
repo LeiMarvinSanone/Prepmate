@@ -192,7 +192,7 @@ export default function SmartSuggestionsScreen({ navigation }) {
           <View style={s.pageSubRow}>
             <Text style={{ fontSize: 13, color: C.textSecondary }}>Based on your past events</Text>
             <View style={[s.headerIcon, { backgroundColor: C.primaryLight }]}>
-              <Text style={{ fontSize: 22 }}>✨</Text>
+              <Text style={{ fontSize: 25 }}>😸</Text>
             </View>
           </View>
 

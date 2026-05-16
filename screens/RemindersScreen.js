@@ -596,7 +596,7 @@ export default function RemindersScreen({ navigation }) {
 
       {/* ── Page header ── */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Reminders 🔔</Text>
+        <Text style={styles.headerTitle}>Reminders 🛎️</Text>
         <Text style={styles.headerSubtitle}>
           {upcomingReminders.length} upcoming · {pastReminders.length} completed
         </Text>

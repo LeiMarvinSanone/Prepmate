@@ -150,7 +150,7 @@ export default function ProfileScreen({ navigation }) {
       <Modal visible={logoutModal} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={[s.mBox, { backgroundColor: C.white }]}>
-            <Text style={{ fontSize: 48 }}>👋</Text>
+            <Text style={{ fontSize: 55 }}>❓</Text>
             <Text style={[s.mTitle, { color: C.text }]}>Log Out</Text>
             <Text style={{ fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22 }}>
               Are you sure you want to log out?
@@ -203,7 +203,7 @@ export default function ProfileScreen({ navigation }) {
       <Modal visible={helpModal} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={[s.mBox, { backgroundColor: C.white, maxHeight: '80%' }]}>
-            <Text style={{ fontSize: 44 }}>🤝</Text>
+            <Text style={{ fontSize: 60 }}>🫡</Text>
             <Text style={[s.mTitle, { color: C.text }]}>Help & Support</Text>
             {[
               ['How do I create an event?', 'Tap the + button on My Events or the Home screen.'],

@@ -56,7 +56,7 @@ export default function HomeScreen({ navigation }) {
         <View style={s.header}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 14, color: C.textSecondary }}>{greeting()},</Text>
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: C.text, marginTop: 2 }}>{userName()}! 👋</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: C.text, marginTop: 2 }}>{userName()}!👋🏻</Text>
             <Text style={{ fontSize: 14, color: C.textSecondary, marginTop: 4 }}>What are you preparing for?</Text>
           </View>
           <TouchableOpacity

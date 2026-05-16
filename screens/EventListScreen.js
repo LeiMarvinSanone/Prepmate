@@ -131,7 +131,7 @@ export default function EventListScreen({ navigation, route }) {
   const getCategoryEmoji = (categoryId) => {
     const map = {
       outdoor: '🏔️', formal: '👔', travel: '🧳',
-      school: '🎒', indoor: '🛋️', more: '🗂️', custom: '✨',
+      school: '📖', indoor: '🛋️', more: '🗂️', custom: '✨',
     };
     return map[categoryId] || '📋';
   };
