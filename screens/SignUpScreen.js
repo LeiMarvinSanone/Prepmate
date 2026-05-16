@@ -3,59 +3,37 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, ScrollView, Modal
+  Platform, ScrollView, Modal, Image
 } from 'react-native';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth, GOOGLE_WEB_CLIENT_ID } from '../firebase';
+import { auth } from '../firebase';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
 import { useModalFocus, clearAccessibilityFocus } from '../hooks/useModalFocus';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function SignUpScreen({ navigation }) {
   const { colors: COLORS } = useTheme();
   const styles = makeStyles(COLORS);
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+
+  const [fullName,         setFullName]         = useState('');
+  const [email,            setEmail]            = useState('');
+  const [password,         setPassword]         = useState('');
+  const [confirmPassword,  setConfirmPassword]  = useState('');
+  const [showPassword,     setShowPassword]     = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [modal, setModal] = useState({ visible: false, title: '', message: '', icon: '' });
-  
-  // Hook to safely close modal while clearing focus to prevent aria-hidden warnings
+  const [loading,          setLoading]          = useState(false);
+  const [errors,           setErrors]           = useState({});
+  const [modal,            setModal]            = useState({ visible: false, title: '', message: '', icon: '' });
+
+  // Safely closes modal and clears accessibility focus (prevents aria-hidden warnings on web)
   const closeModal = useModalFocus(modal, setModal);
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-  });
-
-  React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      const credential = GoogleAuthProvider.credential(id_token);
-      setGoogleLoading(true);
-      signInWithCredential(auth, credential)
-        // Remove navigation.replace('Main') — onAuthStateChanged in App.js handles this
-        .catch(() => setModal({
-          visible: true,
-          icon: '❌',
-          title: 'Google Sign-In Failed',
-          message: 'Something went wrong. Please try again.',
-        }))
-        .finally(() => setGoogleLoading(false));
-    }
-  }, [response]);
+  // ── Validation ────────────────────────────────────────────────────────────
 
   const validate = () => {
     let valid = true;
     let newErrors = {};
+
     if (!fullName.trim()) {
       newErrors.fullName = 'Full name is required';
       valid = false;
@@ -81,9 +59,12 @@ export default function SignUpScreen({ navigation }) {
       newErrors.confirmPassword = 'Passwords do not match';
       valid = false;
     }
+
     setErrors(newErrors);
     return valid;
   };
+
+  // ── Sign Up handler ───────────────────────────────────────────────────────
 
   const handleSignUp = async () => {
     if (!validate()) return;
@@ -91,7 +72,7 @@ export default function SignUpScreen({ navigation }) {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName: fullName });
-      // Remove navigation.replace('Main') — onAuthStateChanged in App.js handles this automatically
+      // No navigation.replace needed — onAuthStateChanged in App.js handles it automatically
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
         setModal({
@@ -120,22 +101,21 @@ export default function SignUpScreen({ navigation }) {
     }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Error Modal */}
+      {/* Error / info modal */}
       <Modal visible={modal.visible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalIcon}>{modal.icon}</Text>
             <Text style={styles.modalTitle}>{modal.title}</Text>
             <Text style={styles.modalMessage}>{modal.message}</Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={closeModal}
-            >
+            <TouchableOpacity style={styles.modalButton} onPress={closeModal}>
               <Text style={styles.modalButtonText}>OK</Text>
             </TouchableOpacity>
             {modal.title === 'Account Already Exists' && (
@@ -160,7 +140,12 @@ export default function SignUpScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Create Account ✨</Text>
+          <Image
+            source={require('../assets/prepmateicon1.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Sign up to get started</Text>
         </View>
 
@@ -270,32 +255,6 @@ export default function SignUpScreen({ navigation }) {
             )}
           </TouchableOpacity>
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google Sign In Button */}
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={() => promptAsync()}
-            disabled={!request || googleLoading}
-          >
-            {googleLoading ? (
-              <ActivityIndicator color={COLORS.text} />
-            ) : (
-              <>
-                <Image
-                  source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
-                  style={styles.googleIcon}
-                />
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
           {/* Login Link */}
           <View style={styles.loginRow}>
             <Text style={styles.loginText}>Already have an account? </Text>
@@ -310,7 +269,7 @@ export default function SignUpScreen({ navigation }) {
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const makeStyles = (COLORS) => StyleSheet.create({
   container: {
@@ -322,10 +281,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  backButton: {
-    alignSelf: 'flex-start',
-    marginBottom: 16,
   },
   title: {
     fontSize: 26,
@@ -343,15 +298,10 @@ const makeStyles = (COLORS) => StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 0,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: COLORS.background,
-  },
-  // Remove border when input is focused
-  inputWrapperFocused: {
-    borderWidth: 0,
   },
   inputIcon: {
     marginRight: 10,
@@ -360,8 +310,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: COLORS.text,
-    outlineWidth: 0,
-    borderWidth: 0,
   },
   errorRow: {
     flexDirection: 'row',
@@ -386,42 +334,6 @@ const makeStyles = (COLORS) => StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginVertical: 4,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  dividerText: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingVertical: 13,
-    gap: 10,
-    backgroundColor: COLORS.white,
-  },
-  googleIcon: {
-    width: 22,
-    height: 22,
-    resizeMode: 'contain',
-  },
-  googleButtonText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '500',
-  },
   loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -435,6 +347,10 @@ const makeStyles = (COLORS) => StyleSheet.create({
     color: COLORS.primary,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  logo: {
+    width: 260,
+    height: 260,
   },
   modalOverlay: {
     flex: 1,

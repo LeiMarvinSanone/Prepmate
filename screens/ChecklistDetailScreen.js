@@ -30,7 +30,10 @@ export default function ChecklistDetailScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { id, name }
-  const [deleteModal, setDeleteModal] = useState({ visible: false, itemId: null });
+  const [deleteModal,  setDeleteModal]  = useState({ visible: false, itemId: null });
+  // Separate modal for the "Uncheck All" confirmation — replaces Alert.alert
+  // which is unreliable on Expo web (falls back to window.confirm and can hang).
+  const [uncheckModal, setUncheckModal] = useState(false);
   const [progress, setProgress] = useState({ checked: 0, total: 0, percentage: 0 });
 
   // Hook to safely close delete modal while clearing focus to prevent aria-hidden warnings
@@ -142,29 +145,40 @@ export default function ChecklistDetailScreen({ navigation, route }) {
     }
   };
 
+  // Opens the in-app uncheck confirmation modal.
+  // We no longer use Alert.alert here because on Expo web it falls back to
+  // window.confirm(), which blocks the JS thread and can silently swallow
+  // the user's confirmation — making the refresh button appear broken.
   const handleUncheckAll = () => {
-    Alert.alert(
-      'Uncheck All',
-      'Reset all items to unpacked?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset', style: 'destructive',
-          onPress: async () => {
-            const updated = items.map(i => ({ ...i, isChecked: false }));
-            setItems(updated);
-            setProgress(getChecklistProgress(updated));
-            try {
-              await Promise.all(
-                items.filter(i => i.isChecked).map(i => toggleChecklistItem(i.id, true))
-              );
-            } catch {
-              fetchData();
-            }
-          },
-        },
-      ]
-    );
+    if (items.length === 0) return;
+    // If nothing is checked there is nothing to reset — skip the modal
+    const hasChecked = items.some(i => i.isChecked);
+    if (!hasChecked) return;
+    setUncheckModal(true);
+  };
+
+  // Called when the user confirms "Reset" inside the modal.
+  // 1. Optimistic UI update so the list clears instantly without a loading flash
+  // 2. Firestore writes run in parallel for all currently-checked items
+  // 3. On any write failure, re-fetch from Firestore to stay consistent
+  const confirmUncheckAll = async () => {
+    setUncheckModal(false);
+    // Optimistic update — set every item to unchecked in local state immediately
+    const updated = items.map(i => ({ ...i, isChecked: false }));
+    setItems(updated);
+    setProgress(getChecklistProgress(updated));
+    try {
+      // Only write to Firestore for items that were actually checked
+      // toggleChecklistItem(id, true) writes isChecked: !true = false
+      const checkedItems = items.filter(i => i.isChecked);
+      await Promise.all(
+        checkedItems.map(i => toggleChecklistItem(i.id, true))
+      );
+    } catch (err) {
+      console.error('Uncheck all failed:', err);
+      // Re-fetch to restore correct state if any write failed
+      fetchData();
+    }
   };
 
   // ─── Render helpers ───────────────────────────────────────────────────────
@@ -292,6 +306,29 @@ export default function ChecklistDetailScreen({ navigation, route }) {
             <TouchableOpacity
               style={[styles.modalButton, styles.modalButtonOutline]}
               onPress={closeDeleteModal}
+            >
+              <Text style={styles.modalButtonOutlineText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Uncheck All confirmation modal ── */}
+      {/* Replaces Alert.alert which fails silently on Expo web */}
+      <Modal visible={uncheckModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalIcon}>🔄</Text>
+            <Text style={styles.modalTitle}>Reset Checklist</Text>
+            <Text style={styles.modalMessage}>
+              Uncheck all items and reset the checklist to unpacked?
+            </Text>
+            <TouchableOpacity style={styles.modalButton} onPress={confirmUncheckAll}>
+              <Text style={styles.modalButtonText}>Yes, Reset</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalButtonOutline]}
+              onPress={() => setUncheckModal(false)}
             >
               <Text style={styles.modalButtonOutlineText}>Cancel</Text>
             </TouchableOpacity>
